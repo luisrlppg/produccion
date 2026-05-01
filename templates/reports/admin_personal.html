@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Reportes Personales</h2>
+
+{% if reports %}
+<div style="overflow-x: auto;">
+    <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
+        <thead>
+            <tr style="background-color: #f8f9fa;">
+                <th style="border: 1px solid #ddd; padding: 8px;">ID</th>
+                <th style="border: 1px solid #ddd; padding: 8px;">Tipo</th>
+                <th style="border: 1px solid #ddd; padding: 8px;">Tema</th>
+                <th style="border: 1px solid #ddd; padding: 8px;">Descripción</th>
+                <th style="border: 1px solid #ddd; padding: 8px;">Timestamp</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for report in reports %}
+            <tr>
+                <td style="border: 1px solid #ddd; padding: 8px;">{{ report.Report_ID }}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">{{ report.Type }}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">{{ report.Item_Name }}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">{{ report.Failure_Description }}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">{{ report.Timestamp }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<p>No hay reportes personales disponibles.</p>
+{% endif %}
+
+<div style="margin-top: 20px;">
+    <a href="{{ url_for('admin.admin_dashboard') }}" class="btn" style="background: #6c757d;">Volver al Panel</a>
+    <a href="{{ url_for('admin.download_report_csv', report_type='personal') }}" class="btn" style="background: #28a745; margin-left: 10px;">Descargar CSV</a>
+</div>
+{% endblock %}

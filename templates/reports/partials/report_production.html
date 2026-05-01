@@ -1,0 +1,61 @@
+{# Header fields #}
+<div class="section-card">
+    <h3>Informacion del Turno</h3>
+
+    <div class="form-group">
+        <label for="name">{{ get_text('name') }} <span style="color: #e53e3e;">*</span></label>
+        <input type="text" id="name" name="name" required 
+               placeholder="Ingresa el nombre de quien reporta"
+               style="border: 2px solid #cbd5e0;">
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px;">
+        <div class="form-group">
+            <label for="job_shift">{{ get_text('job_shift') }} <span style="color: #e53e3e;">*</span></label>
+            <select id="job_shift" name="job_shift" required style="border: 2px solid #cbd5e0;">
+                <option value="">Seleccionar turno</option>
+                <option value="morning">Matutino</option>
+                <option value="afternoon">Vespertino</option>
+                <option value="night">Nocturno</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="date">{{ get_text('date') }} <span style="color: #e53e3e;">*</span></label>
+            <input type="date" id="date" name="date" required style="border: 2px solid #cbd5e0;">
+        </div>
+        <div class="form-group">
+            <label for="quantity_persons">{{ get_text('quantity_persons') }} <span style="color: #e53e3e;">*</span></label>
+            <input type="text" inputmode="numeric" pattern="[0-9]*" id="quantity_persons" name="quantity_persons" required 
+                   placeholder="Ej: 5" min="1" style="border: 2px solid #cbd5e0;">
+        </div>
+    </div>
+    
+    <div style="margin-top: 10px; font-size: 0.85rem; color: #666;">
+        <span style="color: #e53e3e;">*</span> Campos obligatorios
+    </div>
+</div>
+
+{# Machines #}
+{% include 'reports/partials/production/machines.html' %}
+
+{# Dynamic product-row sections #}
+{% with section_title = get_text('assembly_production'), css_class = 'assembly', hidden_name = 'assembly_products' %}
+    {% include 'reports/partials/production/product_rows.html' %}
+{% endwith %}
+
+{% with section_title = 'Ensartado', css_class = 'stringing', hidden_name = 'stringing_products' %}
+    {% include 'reports/partials/production/product_rows.html' %}
+{% endwith %}
+
+{% with section_title = 'Pegado', css_class = 'gluing', hidden_name = 'gluing_products' %}
+    {% include 'reports/partials/production/product_rows.html' %}
+{% endwith %}
+
+{# Deliveries #}
+{% include 'reports/partials/production/deliveries.html' %}
+
+{# Additional notes #}
+{% include 'reports/partials/production/notes.html' %}
+
+{# JavaScript #}
+{% include 'reports/partials/production/scripts.html' %}

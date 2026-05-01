@@ -1,0 +1,22 @@
+<div class="section-card">
+    <h3>{{ get_text('deliveries') }}</h3>
+
+    <div id="delivery_rows">
+        <div class="delivery-row dynamic-row">
+            <div class="field-lg">
+                <label>Cliente:</label>
+                <input type="text" class="delivery-customer" placeholder="Nombre del cliente">
+            </div>
+            <div class="field-md">
+                <label>Descripcion del producto:</label>
+                <input type="text" class="delivery-desc" placeholder="Descripcion del producto entregado">
+            </div>
+        </div>
+    </div>
+
+    <button type="button" onclick="addDeliveryRow()" class="btn btn-info" style="margin-top: 8px;">
+        + Agregar entrega
+    </button>
+
+    <input type="hidden" id="deliveries" name="deliveries" value="">
+</div>

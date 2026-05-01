@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Reportes de Empresa</h2>
+
+{% if reports %}
+<div style="overflow-x: auto;">
+    <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
+        <thead>
+            <tr style="background-color: #f8f9fa;">
+                <th style="border: 1px solid #ddd; padding: 8px;">ID</th>
+                <th style="border: 1px solid #ddd; padding: 8px;">Tipo</th>
+                <th style="border: 1px solid #ddd; padding: 8px;">Artículo</th>
+                <th style="border: 1px solid #ddd; padding: 8px;">Ubicación</th>
+                <th style="border: 1px solid #ddd; padding: 8px;">Descripción de Falla</th>
+                <th style="border: 1px solid #ddd; padding: 8px;">Info Adicional</th>
+                <th style="border: 1px solid #ddd; padding: 8px;">Foto</th>
+                <th style="border: 1px solid #ddd; padding: 8px;">Timestamp</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for report in reports %}
+            <tr>
+                <td style="border: 1px solid #ddd; padding: 8px;">{{ report.Report_ID }}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">{{ report.Type }}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">{{ report.Item_Name }}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">{{ report.Location }}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">{{ report.Failure_Description }}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">{{ report.Additional_Info }}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">
+                    {% if report.Photo_Path %}
+                        <a href="{{ url_for('admin.uploaded_file', filename=report.Photo_Path.split('/')[-1]) }}" target="_blank">Ver Foto</a>
+                    {% else %}
+                        Sin foto
+                    {% endif %}
+                </td>
+                <td style="border: 1px solid #ddd; padding: 8px;">{{ report.Timestamp }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<p>No hay reportes de empresa disponibles.</p>
+{% endif %}
+
+<div style="margin-top: 20px;">
+    <a href="{{ url_for('admin.admin_dashboard') }}" class="btn" style="background: #6c757d;">Volver al Panel</a>
+    <a href="{{ url_for('admin.download_report_csv', report_type='company') }}" class="btn" style="background: #28a745; margin-left: 10px;">Descargar CSV</a>
+</div>
+{% endblock %}

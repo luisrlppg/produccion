@@ -1,0 +1,9 @@
+.env
+__pycache__/
+*.pyc
+*.pyo
+data/*.csv
+data/*.json
+uploads/
+*.log
+.vscode/

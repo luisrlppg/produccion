@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+    <h2>Reportes</h2>
+    <a href="{{ url_for('admin.download_csv') }}" class="btn">Descargar CSV</a>
+</div>
+
+{% if reports %}
+    {% for report in reports %}
+    <div style="border: 1px solid #ddd; margin-bottom: 20px; padding: 15px; border-radius: 8px; background: white;">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+            <strong>Reporte #{{ report.Report_ID }}</strong>
+            <span style="color: #666;">{{ report.Timestamp }}</span>
+        </div>
+        
+        <div style="margin-bottom: 10px;">
+            <span style="background: {% if report.Type == 'personal' %}#28a745{% else %}#007bff{% endif %}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px;">
+                {{ report.Type.title() }}
+            </span>
+        </div>
+
+        <div style="margin-bottom: 10px;">
+            <strong>{% if report.Type == 'personal' %}Tema{% else %}Artículo{% endif %}:</strong> {{ report.Item_Name }}
+        </div>
+
+        {% if report.Location %}
+        <div style="margin-bottom: 10px;">
+            <strong>Ubicación:</strong> {{ report.Location }}
+        </div>
+        {% endif %}
+
+        <div style="margin-bottom: 10px;">
+            <strong>Descripción:</strong> {{ report.Failure_Description }}
+        </div>
+
+        {% if report.Additional_Info %}
+        <div style="margin-bottom: 10px;">
+            <strong>Información Adicional:</strong> {{ report.Additional_Info }}
+        </div>
+        {% endif %}
+
+        {% if report.Photo_Path %}
+        <div style="margin-top: 15px;">
+            <strong>Foto:</strong><br>
+            <img src="{{ url_for('admin.uploaded_file', filename=report.Photo_Path.split('/')[-1]) }}" 
+                 style="max-width: 300px; max-height: 300px; border: 1px solid #ddd; border-radius: 4px; margin-top: 5px;">
+        </div>
+        {% endif %}
+    </div>
+    {% endfor %}
+{% else %}
+    <p>No hay reportes disponibles.</p>
+{% endif %}
+{% endblock %}

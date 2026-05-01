@@ -1,0 +1,195 @@
+<script>
+// ---------------------------------------------------------------------------
+// Form validation for required fields
+// ---------------------------------------------------------------------------
+
+function validateRequiredFields() {
+    const requiredFields = [
+        { id: 'name', name: 'Nombre' },
+        { id: 'job_shift', name: 'Turno de Trabajo' },
+        { id: 'date', name: 'Fecha' },
+        { id: 'quantity_persons', name: 'Cantidad de Personas' }
+    ];
+    
+    let isValid = true;
+    const errors = [];
+    
+    // Reset previous error styles
+    requiredFields.forEach(field => {
+        const element = document.getElementById(field.id);
+        if (element) {
+            element.style.borderColor = '#cbd5e0';
+        }
+    });
+    
+    // Validate each required field
+    requiredFields.forEach(field => {
+        const element = document.getElementById(field.id);
+        if (element) {
+            const value = element.value.trim();
+            if (!value) {
+                element.style.borderColor = '#e53e3e';
+                errors.push(`El campo '${field.name}' es obligatorio`);
+                isValid = false;
+            }
+        }
+    });
+    
+    // Special validation for quantity_persons (must be positive number)
+    const quantityElement = document.getElementById('quantity_persons');
+    if (quantityElement && quantityElement.value.trim()) {
+        const quantity = parseInt(quantityElement.value.trim());
+        if (isNaN(quantity) || quantity <= 0) {
+            quantityElement.style.borderColor = '#e53e3e';
+            errors.push('La cantidad de personas debe ser un número mayor a 0');
+            isValid = false;
+        }
+    }
+    
+    // Show errors if any
+    if (!isValid) {
+        alert('Por favor corrige los siguientes errores:\n\n' + errors.join('\n'));
+    }
+    
+    return isValid;
+}
+
+// Add visual feedback on field changes
+document.addEventListener('DOMContentLoaded', function() {
+    const requiredFields = ['name', 'job_shift', 'date', 'quantity_persons'];
+    
+    requiredFields.forEach(fieldId => {
+        const element = document.getElementById(fieldId);
+        if (element) {
+            element.addEventListener('input', function() {
+                if (this.value.trim()) {
+                    this.style.borderColor = '#48bb78'; // Green when filled
+                } else {
+                    this.style.borderColor = '#cbd5e0'; // Default when empty
+                }
+            });
+            
+            element.addEventListener('blur', function() {
+                if (!this.value.trim()) {
+                    this.style.borderColor = '#e53e3e'; // Red when empty on blur
+                }
+            });
+        }
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Generic product-rows (assembly / stringing / gluing / ...)
+// ---------------------------------------------------------------------------
+
+function addRow(prefix) {
+    const container = document.getElementById(prefix + '_rows');
+    const row = document.createElement('div');
+    row.className = prefix + '-row';
+    row.style.cssText = 'display:flex; gap:10px; align-items:flex-end; margin-bottom:10px;';
+    row.innerHTML = `
+        <div style="flex:2;">
+            <label>Producto:</label>
+            <input type="text" class="${prefix}-name" placeholder="Nombre del producto" style="width:100%;">
+        </div>
+        <div style="flex:1;">
+            <label>Cantidad:</label>
+            <input type="text" inputmode="numeric" pattern="[0-9]*" class="${prefix}-qty" placeholder="0" style="width:100%;">
+        </div>
+        <div>
+            <button type="button" onclick="removeRow(this, '${prefix}')" class="btn-remove">
+                ×
+            </button>
+        </div>`;
+    container.appendChild(row);
+}
+
+function removeRow(btn, prefix) {
+    const rows = document.querySelectorAll('.' + prefix + '-row');
+    if (rows.length > 1) {
+        btn.closest('.' + prefix + '-row').remove();
+    }
+}
+
+function collectRows(prefix, hiddenId) {
+    const products = [];
+    document.querySelectorAll('.' + prefix + '-row').forEach(row => {
+        const name = row.querySelector('.' + prefix + '-name').value.trim();
+        const qty  = row.querySelector('.' + prefix + '-qty').value.trim();
+        if (name && qty && parseInt(qty) > 0) {
+            products.push({ name, quantity: qty });
+        }
+    });
+    document.getElementById(hiddenId).value = JSON.stringify(products);
+}
+
+// ---------------------------------------------------------------------------
+// Delivery rows
+// ---------------------------------------------------------------------------
+
+function addDeliveryRow() {
+    const container = document.getElementById('delivery_rows');
+    const row = document.createElement('div');
+    row.className = 'delivery-row';
+    row.style.cssText = 'display:flex; gap:10px; align-items:flex-end; margin-bottom:10px;';
+    row.innerHTML = `
+        <div style="flex:2;">
+            <label>Cliente:</label>
+            <input type="text" class="delivery-customer" placeholder="Nombre del cliente" style="width:100%;">
+        </div>
+        <div style="flex:3;">
+            <label>Descripcion del producto:</label>
+            <input type="text" class="delivery-desc" placeholder="Descripcion del producto entregado" style="width:100%;">
+        </div>
+        <div>
+            <button type="button" onclick="removeDeliveryRow(this)" class="btn-remove">
+                ×
+            </button>
+        </div>`;
+    container.appendChild(row);
+}
+
+function removeDeliveryRow(btn) {
+    const rows = document.querySelectorAll('.delivery-row');
+    if (rows.length > 1) {
+        btn.closest('.delivery-row').remove();
+    }
+}
+
+function collectDeliveries() {
+    const deliveries = [];
+    document.querySelectorAll('.delivery-row').forEach(row => {
+        const customer = row.querySelector('.delivery-customer').value.trim();
+        const desc     = row.querySelector('.delivery-desc').value.trim();
+        if (customer || desc) {
+            deliveries.push({ customer, description: desc, quantity: 1 });
+        }
+    });
+    document.getElementById('deliveries').value = JSON.stringify(deliveries);
+}
+
+// ---------------------------------------------------------------------------
+// Collect all hidden fields before submit and validate
+// ---------------------------------------------------------------------------
+
+document.querySelector('form').addEventListener('submit', function(e) {
+    // Validate required fields first
+    if (!validateRequiredFields()) {
+        e.preventDefault();
+        return false;
+    }
+    
+    // If validation passes, collect data
+    collectRows('assembly',  'assembly_products');
+    collectRows('stringing', 'stringing_products');
+    collectRows('gluing',    'gluing_products');
+    collectDeliveries();
+    
+    // Show loading state
+    const submitBtn = this.querySelector('button[type="submit"]');
+    if (submitBtn) {
+        submitBtn.innerHTML = '⏳ Enviando...';
+        submitBtn.disabled = true;
+    }
+});
+</script>

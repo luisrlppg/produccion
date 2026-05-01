@@ -1,0 +1,29 @@
+{#
+  Reusable dynamic product-rows section.
+  Variables expected in scope:
+    section_title - e.g. "Produccion de Ensamble"
+    css_class     - e.g. "assembly"   (used as CSS class and JS prefix)
+    hidden_name   - e.g. "assembly_products"
+#}
+<div class="section-card">
+    <h3>{{ section_title }}</h3>
+
+    <div id="{{ css_class }}_rows">
+        <div class="{{ css_class }}-row dynamic-row">
+            <div class="field-lg">
+                <label>Producto:</label>
+                <input type="text" class="{{ css_class }}-name" placeholder="Nombre del producto">
+            </div>
+            <div class="field-sm">
+                <label>Cantidad:</label>
+                <input type="text" inputmode="numeric" pattern="[0-9]*" class="{{ css_class }}-qty" placeholder="0">
+            </div>
+        </div>
+    </div>
+
+    <button type="button" onclick="addRow('{{ css_class }}')" class="btn btn-success" style="margin-top: 8px;">
+        + Agregar producto
+    </button>
+
+    <input type="hidden" id="{{ hidden_name }}" name="{{ hidden_name }}" value="">
+</div>

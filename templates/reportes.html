@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2 style="text-align:center; margin-bottom:32px;">Reportes</h2>
+
+<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px,1fr)); gap:24px; max-width:600px; margin:0 auto;">
+
+    <a href="{{ url_for('report_form', report_type='production') }}"
+       style="display:block; padding:32px 24px; background:#f0fff4; border:1px solid #9ae6b4; border-radius:14px; text-decoration:none; text-align:center; transition:box-shadow .2s;"
+       onmouseover="this.style.boxShadow='0 4px 16px rgba(0,0,0,.1)'"
+       onmouseout="this.style.boxShadow='none'">
+        <div style="font-size:2.5rem; margin-bottom:10px;">📝</div>
+        <div style="font-weight:700; color:#276749; font-size:1.1rem;">Nuevo Reporte de Trabajo</div>
+        <div style="font-size:.85rem; color:#4a5568; margin-top:6px;">Registrar producción del turno</div>
+    </a>
+
+    <a href="{{ url_for('admin.production_view') }}"
+       style="display:block; padding:32px 24px; background:#ebf8ff; border:1px solid #bee3f8; border-radius:14px; text-decoration:none; text-align:center; transition:box-shadow .2s;"
+       onmouseover="this.style.boxShadow='0 4px 16px rgba(0,0,0,.1)'"
+       onmouseout="this.style.boxShadow='none'">
+        <div style="font-size:2.5rem; margin-bottom:10px;">📂</div>
+        <div style="font-weight:700; color:#2b6cb0; font-size:1.1rem;">Ver Reportes</div>
+        <div style="font-size:.85rem; color:#4a5568; margin-top:6px;">Consultar historial por fecha</div>
+    </a>
+
+</div>
+
+<div style="text-align:center; margin-top:32px;">
+    <a href="{{ url_for('index') }}" style="color:#718096; font-size:.9rem; text-decoration:none;">← Volver al inicio</a>
+</div>
+{% endblock %}

@@ -1,0 +1,265 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Vista de Reportes de Produccion</h2>
+
+<div class="card" style="margin-bottom: 30px;">
+    <div class="card-header">
+        <h3>Seleccionar Fecha</h3>
+    </div>
+    <div class="card-body">
+        <form method="GET" style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
+            <div>
+                <label for="date" style="display: block; margin-bottom: 5px; font-weight: bold;">Fecha:</label>
+                <select name="date" id="date" class="form-control" style="min-width: 200px;" onchange="this.form.submit()">
+                    <option value="">Seleccionar fecha...</option>
+                    {% for date in available_dates %}
+                        <option value="{{ date }}" {% if date == selected_date %}selected{% endif %}>
+                            {{ date }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div style="margin-top: 20px;">
+                <button type="submit" class="btn btn-primary">Ver Reportes</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% if selected_date %}
+    {% if reports %}
+        <h3>Reportes del {{ selected_date }}</h3>
+        
+        {% for report in reports %}
+            <div class="card" style="margin-bottom: 30px;">
+                <div class="card-header">
+                    <h4>Reporte #{{ report.csv['ID Reporte'] }} - {{ report.csv['Nombre'] }}</h4>
+                    <p style="margin: 5px 0; color: #666;">
+                        Turno: {{ report.csv['Turno'] }} | 
+                        Trabajadores: {{ report.csv['Trabajadores'] }} | 
+                        Enviado: {{ report.csv['Fecha y Hora de Envio'] }}
+                    </p>
+                </div>
+                <div class="card-body">
+                    
+                    <!-- Produccion de Maquinas -->
+                    <div class="section">
+                        <h5>Produccion de Maquinas</h5>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;">
+                            {% set has_machine_data = false %}
+                            {% for i in range(1, 4) %}
+                                {% set qty = report.csv['Maquina ' + i|string + ' Cantidad'] %}
+                                {% set brush = report.csv['Maquina ' + i|string + ' Tipo de Cepillo'] %}
+                                {% set color = report.csv['Maquina ' + i|string + ' Color'] %}
+                                {% if qty %}
+                                    {% set has_machine_data = true %}
+                                    <div class="machine-card">
+                                        <strong>Maquina {{ i }}</strong><br>
+                                        Cantidad: {{ qty }}<br>
+                                        Tipo: {{ brush }}<br>
+                                        Color: {{ color }}
+                                    </div>
+                                {% endif %}
+                            {% endfor %}
+                            {% if not has_machine_data %}
+                                <div style="grid-column: 1 / -1; text-align: center; color: #666; font-style: italic;">
+                                    No hay datos de produccion de maquinas para este reporte
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Productos Detallados (JSON) -->
+                    {% if report.json %}
+                        {% set has_products = report.json.ensamble or report.json.ensartado or report.json.pegado %}
+                        {% if has_products %}
+                            <div class="section">
+                                <h5>Productos Ensamblados</h5>
+                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+                                    
+                                    <!-- Ensamble -->
+                                    {% if report.json.ensamble %}
+                                        <div class="product-section">
+                                            <h6>Ensamble</h6>
+                                            <ul>
+                                                {% for product in report.json.ensamble %}
+                                                    <li>{{ product.producto }}: {{ product.cantidad }}</li>
+                                                {% endfor %}
+                                            </ul>
+                                        </div>
+                                    {% endif %}
+
+                                    <!-- Ensartado -->
+                                    {% if report.json.ensartado %}
+                                        <div class="product-section">
+                                            <h6>Ensartado</h6>
+                                            <ul>
+                                                {% for product in report.json.ensartado %}
+                                                    <li>{{ product.producto }}: {{ product.cantidad }}</li>
+                                                {% endfor %}
+                                            </ul>
+                                        </div>
+                                    {% endif %}
+
+                                    <!-- Pegado -->
+                                    {% if report.json.pegado %}
+                                        <div class="product-section">
+                                            <h6>Pegado</h6>
+                                            <ul>
+                                                {% for product in report.json.pegado %}
+                                                    <li>{{ product.producto }}: {{ product.cantidad }}</li>
+                                                {% endfor %}
+                                            </ul>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        {% endif %}
+                    {% endif %}
+                    
+                    <!-- Fallback to CSV data if JSON not available or no products -->
+                    {% if not report.json or not (report.json.ensamble or report.json.ensartado or report.json.pegado) %}
+                        {% set has_csv_products = report.csv['Ensamble'] or report.csv['Ensartado'] or report.csv['Pegado'] %}
+                        {% if has_csv_products %}
+                            <div class="section">
+                                <h5>Productos (Resumen)</h5>
+                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px;">
+                                    {% if report.csv['Ensamble'] %}
+                                        <div class="product-section">
+                                            <h6>Ensamble</h6>
+                                            <p>{{ report.csv['Ensamble'] }}</p>
+                                        </div>
+                                    {% endif %}
+                                    {% if report.csv['Ensartado'] %}
+                                        <div class="product-section">
+                                            <h6>Ensartado</h6>
+                                            <p>{{ report.csv['Ensartado'] }}</p>
+                                        </div>
+                                    {% endif %}
+                                    {% if report.csv['Pegado'] %}
+                                        <div class="product-section">
+                                            <h6>Pegado</h6>
+                                            <p>{{ report.csv['Pegado'] }}</p>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        {% endif %}
+                    {% endif %}
+
+                    <!-- Entregas -->
+                    {% if report.csv['Entregas'] %}
+                        <div class="section">
+                            <h5>Entregas</h5>
+                            <p>{{ report.csv['Entregas'] }}</p>
+                        </div>
+                    {% endif %}
+
+                    <!-- Totales -->
+                    <div class="section">
+                        <h5>Totales de Produccion</h5>
+                        <div style="display: flex; gap: 30px; flex-wrap: wrap;">
+                            <div>
+                                <strong>Produccion Total:</strong> {{ report.csv['Produccion Total'] }}
+                            </div>
+                            <div>
+                                <strong>Produccion por Trabajador:</strong> {{ report.csv['Produccion por Trabajador'] }}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Notas -->
+                    {% if report.csv['Notas Adicionales'] %}
+                        <div class="section">
+                            <h5>Notas Adicionales</h5>
+                            <p style="background: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 4px solid #007bff;">
+                                {{ report.csv['Notas Adicionales'] }}
+                            </p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        {% endfor %}
+        
+    {% else %}
+        <div class="card">
+            <div class="card-body" style="text-align: center; padding: 40px;">
+                <h4>No hay reportes para la fecha {{ selected_date }}</h4>
+                <p style="color: #666;">Selecciona otra fecha para ver los reportes disponibles.</p>
+            </div>
+        </div>
+    {% endif %}
+{% else %}
+    <div class="card">
+        <div class="card-body" style="text-align: center; padding: 40px;">
+            <h4>Selecciona una fecha para ver los reportes</h4>
+            <p style="color: #666;">Usa el selector de fecha arriba para mostrar los reportes de produccion.</p>
+            {% if available_dates %}
+                <div style="margin-top: 20px;">
+                    <p><strong>Fechas disponibles:</strong></p>
+                    <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+                        {% for date in available_dates[:5] %}
+                            <span class="badge" style="background: #007bff; color: white; padding: 5px 10px; border-radius: 15px;">{{ date }}</span>
+                        {% endfor %}
+                        {% if available_dates|length > 5 %}
+                            <span style="color: #666;">y {{ available_dates|length - 5 }} mas...</span>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+{% endif %}
+
+<div style="margin-top: 40px; text-align: center;">
+    <a href="{{ url_for('reportes') }}" class="btn btn-secondary">← Volver a Reportes</a>
+</div>
+
+<style>
+.section {
+    margin-bottom: 25px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #eee;
+}
+
+.section:last-child {
+    border-bottom: none;
+}
+
+.section h5 {
+    color: #333;
+    margin-bottom: 15px;
+    font-weight: 600;
+}
+
+.section h6 {
+    color: #555;
+    margin-bottom: 10px;
+    font-weight: 500;
+}
+
+.machine-card {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+    border-left: 4px solid #28a745;
+}
+
+.product-section {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+    border-left: 4px solid #007bff;
+}
+
+.product-section ul {
+    margin: 0;
+    padding-left: 20px;
+}
+
+.product-section li {
+    margin-bottom: 5px;
+}
+</style>
+{% endblock %}

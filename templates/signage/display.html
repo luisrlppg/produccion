@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Producción PPG</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/signage.css') }}">
+    <style>
+        body { overflow: hidden; }
+        #no-data-screen {
+            position: fixed; inset: 0;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            background: #1a202c; color: #fff; gap: 12px;
+            font-family: Arial, sans-serif; text-align: center; padding: 24px;
+        }
+        #no-data-screen h2 { font-size: 1.4rem; color: #e2e8f0; }
+        #no-data-screen p  { color: #718096; font-size: 0.95rem; max-width: 380px; line-height: 1.6; }
+        #last-updated {
+            position: fixed; bottom: 10px; right: 14px;
+            font-size: 0.72rem; color: rgba(255,255,255,0.3);
+            font-family: Arial, sans-serif;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="no-data-screen">
+        <div style="font-size:3rem">📭</div>
+        <h2>Sin datos de producción</h2>
+        <p>
+            Abre el panel de producción, carga los datos de Odoo,
+            selecciona los productos y presiona
+            <strong style="color:#e2e8f0">"Guardar Selección"</strong>.
+        </p>
+    </div>
+
+    <div class="grid-container" id="grid" style="display:none">
+        {% for section_name, section_id in [('Inyección', 'inyeccion'), ('Ensamble', 'ensamble'), ('Cepillo', 'cepillo')] %}
+        <div class="section-base section-{{ section_id }}" id="section-{{ section_id }}">
+            <h2>{{ section_name }}</h2>
+            <div class="product-list" id="list-{{ section_id }}"></div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <div id="last-updated"></div>
+
+    <script>
+    function renderGrid(data) {
+        // data.items = [{id, name, qty, cat}, ...]
+        const bycat = { inyeccion: [], ensamble: [], cepillo: [] };
+        (data.items || []).forEach(item => {
+            if (bycat[item.cat]) bycat[item.cat].push(item);
+        });
+
+        // La sección con más items ocupa la fila superior completa
+        let largestCat = 'inyeccion', largestCount = 0;
+        for (const [cat, items] of Object.entries(bycat)) {
+            if (items.length > largestCount) { largestCount = items.length; largestCat = cat; }
+        }
+        document.querySelectorAll('.section-base').forEach(el => {
+            el.classList.remove('section-large', 'section-small');
+            const id = el.id.replace('section-', '');
+            el.classList.add(id === largestCat ? 'section-large' : 'section-small');
+        });
+
+        for (const [cat, items] of Object.entries(bycat)) {
+            const listEl = document.getElementById('list-' + cat);
+            if (!items.length) {
+                listEl.innerHTML = '<p style="color:rgba(255,255,255,0.5);text-align:center;margin-top:2rem;">Sin órdenes activas</p>';
+                continue;
+            }
+            listEl.innerHTML = items.map(item => `
+                <div class="product-item">
+                    <div class="product-name">${item.name}</div>
+                    <div class="product-quantity">${Number(item.qty).toLocaleString('es-MX')}</div>
+                </div>`).join('');
+        }
+
+        document.getElementById('no-data-screen').style.display = 'none';
+        document.getElementById('grid').style.display = '';
+        if (data.now) {
+            document.getElementById('last-updated').textContent = 'Actualizado: ' + data.now;
+        }
+    }
+
+    // SSE — el servidor empuja datos en el momento exacto que el panel guarda la selección
+    function connect() {
+        const es = new EventSource('/signage/events');
+
+        es.onmessage = e => {
+            try { renderGrid(JSON.parse(e.data)); }
+            catch (err) { console.error('SSE parse error:', err); }
+        };
+
+        es.onerror = () => {
+            // Reconectar tras 3 segundos si se cae la conexión
+            es.close();
+            setTimeout(connect, 3000);
+        };
+    }
+
+    connect();
+    </script>
+</body>
+</html>

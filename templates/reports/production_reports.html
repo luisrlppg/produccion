@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Reportes de Producción</h2>
+
+{% if reports %}
+<div style="overflow-x: auto;">
+    <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
+        <thead>
+            <tr style="background-color: #f8f9fa;">
+                <th style="border: 1px solid #ddd; padding: 8px;">ID</th>
+                <th style="border: 1px solid #ddd; padding: 8px;">Nombre</th>
+                <th style="border: 1px solid #ddd; padding: 8px;">Turno</th>
+                <th style="border: 1px solid #ddd; padding: 8px;">Fecha</th>
+                <th style="border: 1px solid #ddd; padding: 8px;">Trabajadores</th>
+                <th style="border: 1px solid #ddd; padding: 8px;">Datos de Producción</th>
+                <th style="border: 1px solid #ddd; padding: 8px;">Timestamp</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for report in reports %}
+            <tr>
+                <td style="border: 1px solid #ddd; padding: 8px;">{{ report.Report_ID }}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">{{ report.Item_Name }}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">{{ report.Location }}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">{{ report.Failure_Description }}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">{{ report.Additional_Info }}</td>
+                <td style="border: 1px solid #ddd; padding: 8px; max-width: 300px; word-wrap: break-word;">{{ report.Photo_Path }}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">{{ report.Timestamp }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<p>No hay reportes de producción disponibles.</p>
+{% endif %}
+
+<div style="margin-top: 20px;">
+    <a href="{{ url_for('index') }}" class="btn" style="background: #6c757d;">Volver al Inicio</a>
+</div>
+{% endblock %}
