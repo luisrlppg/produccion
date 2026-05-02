@@ -18,10 +18,11 @@ RUN pip install --no-cache-dir --upgrade pip \
 COPY . .
 
 RUN mkdir -p data uploads \
-    && chmod 755 data uploads \
-    && chown -R nobody:nogroup /app
+    && addgroup --gid 1001 appgroup \
+    && adduser --uid 1001 --gid 1001 --no-create-home --disabled-password appuser \
+    && chown -R appuser:appgroup /app
 
-USER nobody
+USER appuser
 
 EXPOSE 5000
 
