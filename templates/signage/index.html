@@ -17,6 +17,12 @@
                 <span id="stockBadge" class="badge bg-danger ms-1" style="display:none"></span>
             </button>
         </li>
+        <li class="nav-item">
+            <button class="nav-link" id="tab-ventas" data-tab="vista-ventas">
+                <i class="fas fa-shopping-cart me-1"></i> Ventas
+                <span id="ventasBadge" class="badge bg-primary ms-1" style="display:none"></span>
+            </button>
+        </li>
     </ul>
 
     <!-- ── Lista de Producción ─────────────────────────────────────────────── -->
@@ -97,6 +103,46 @@
             </button>
         </div>
     </div>
+
+    <!-- ── Ventas ─────────────────────────────────────────────────────────── -->
+    <div id="vista-ventas" class="tab-content-panel d-none">
+
+        <div class="d-flex align-items-center gap-3 mb-4 flex-wrap">
+            <button id="loadSalesBtn" class="btn btn-primary">
+                <i class="fas fa-download me-1"></i> Cargar Ventas
+            </button>
+            <div id="salesMeta" style="display:none" class="text-muted small">
+                <i class="fas fa-clock me-1"></i> Actualizado: <span id="salesTimestamp"></span>
+                &nbsp;·&nbsp; <span id="salesCount"></span> órdenes
+            </div>
+        </div>
+
+        <div id="salesError"   class="alert alert-danger"  style="display:none"></div>
+        <div id="salesLoading" class="text-center py-5"    style="display:none">
+            <i class="fas fa-spinner fa-spin fa-2x text-primary"></i>
+            <p class="text-muted mt-2">Consultando Odoo…</p>
+        </div>
+
+        <!-- Filtros -->
+        <div id="salesFilters" class="card mb-3" style="display:none">
+            <div class="card-body py-2 d-flex gap-3 flex-wrap align-items-center">
+                <div class="input-group input-group-sm" style="max-width:240px">
+                    <span class="input-group-text"><i class="fas fa-search"></i></span>
+                    <input type="text" id="salesSearch" class="form-control" placeholder="Buscar cliente u orden…">
+                </div>
+                <select id="salesDeliveryFilter" class="form-select form-select-sm" style="max-width:190px">
+                    <option value="">Todos los estados</option>
+                    <option value="pending">Pendiente</option>
+                    <option value="partial">Parcial</option>
+                    <option value="full">Entregado</option>
+                </select>
+                <span class="text-muted small ms-auto" id="salesFilterCount"></span>
+            </div>
+        </div>
+
+        <div id="salesContent"></div>
+    </div>
+
 </div>
 
 <style>
@@ -237,13 +283,16 @@ function renderStock(lowStock, total, now) {
                 ? '<span class="badge bg-warning text-dark">Urgente</span>'
                 : '<span class="badge bg-info">Bajo</span>';
         const rowClass = p.is_new ? 'class="table-warning"' : '';
+        const variantLabel = p.variant
+            ? `<span class="text-muted small d-block">${p.variant}</span>`
+            : '';
         return `<tr ${rowClass}>
-            <td><strong>${p.name}</strong>${isNew}</td>
-            <td class="text-center"><span class="badge bg-warning text-dark">${p.qty_available.toFixed(2)}</span></td>
-            <td class="text-center">${p.reordering_min_qty.toFixed(2)}</td>
-            <td class="text-center"><span class="badge bg-danger">${p.difference.toFixed(2)}</span></td>
-            <td class="text-center">${p.virtual_available.toFixed(2)}</td>
-            <td class="text-center">${status}</td>
+            <td><strong>${p.name}</strong>${isNew}${variantLabel}</td>
+            <td class="text-center align-middle"><span class="badge bg-warning text-dark">${p.qty_available.toFixed(2)}</span></td>
+            <td class="text-center align-middle">${p.reordering_min_qty.toFixed(2)}</td>
+            <td class="text-center align-middle"><span class="badge bg-danger">${p.difference.toFixed(2)}</span></td>
+            <td class="text-center align-middle">${p.virtual_available.toFixed(2)}</td>
+            <td class="text-center align-middle">${status}</td>
         </tr>`;
     }).join('');
 
@@ -341,5 +390,166 @@ document.getElementById('testNotificationsBtn').addEventListener('click', functi
 });
 
 // NO se llama loadData() automáticamente — el usuario presiona el botón
+
+// ── Ventas ────────────────────────────────────────────────────────────────────
+let _salesData = [];   // cache local para filtrar sin re-fetch
+
+const DELIVERY_LABELS = {
+    pending: { text: 'Pendiente', cls: 'bg-secondary' },
+    partial: { text: 'Parcial',   cls: 'bg-warning text-dark' },
+    full:    { text: 'Entregado', cls: 'bg-success' },
+};
+const ORDER_STATE_LABELS = {
+    sale: { text: 'Confirmada', cls: 'bg-primary' },
+    done: { text: 'Cerrada',    cls: 'bg-dark' },
+};
+
+function loadSales() {
+    const btn = document.getElementById('loadSalesBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Cargando…';
+
+    document.getElementById('salesError').style.display   = 'none';
+    document.getElementById('salesLoading').style.display = 'block';
+    document.getElementById('salesFilters').style.display = 'none';
+    document.getElementById('salesContent').innerHTML     = '';
+    document.getElementById('salesMeta').style.display    = 'none';
+
+    fetch(BASE + '/sales-data')
+        .then(r => { if (r.status === 401) { location.href = '/login'; throw new Error('unauth'); } return r.json(); })
+        .then(data => {
+            document.getElementById('salesLoading').style.display = 'none';
+            if (data.error) {
+                document.getElementById('salesError').textContent = data.error;
+                document.getElementById('salesError').style.display = 'block';
+                return;
+            }
+            _salesData = data.orders || [];
+            document.getElementById('salesTimestamp').textContent = data.now;
+            document.getElementById('salesCount').textContent     = _salesData.length;
+            document.getElementById('salesMeta').style.display    = '';
+            document.getElementById('salesFilters').style.display = '';
+            document.getElementById('ventasBadge').textContent    = _salesData.length;
+            document.getElementById('ventasBadge').style.display  = '';
+            renderSales(_salesData);
+        })
+        .catch(err => {
+            if (err.message === 'unauth') return;
+            document.getElementById('salesLoading').style.display = 'none';
+            document.getElementById('salesError').textContent = 'Error: ' + err.message;
+            document.getElementById('salesError').style.display = 'block';
+        })
+        .finally(() => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-sync-alt me-1"></i> Actualizar';
+        });
+}
+
+function renderSales(orders) {
+    const container = document.getElementById('salesContent');
+    if (!orders.length) {
+        container.innerHTML = '<p class="text-muted text-center py-4">No hay órdenes de venta.</p>';
+        return;
+    }
+
+    container.innerHTML = orders.map(o => {
+        const dlv   = DELIVERY_LABELS[o.delivery_status] || { text: o.delivery_status, cls: 'bg-secondary' };
+        const state = ORDER_STATE_LABELS[o.state]        || { text: o.state,            cls: 'bg-secondary' };
+
+        const linesHtml = o.lines.map(l => {
+            const stockCls = l.qty_available === 0
+                ? 'text-danger fw-bold'
+                : l.qty_available < l.ordered_qty
+                    ? 'text-warning fw-bold'
+                    : 'text-success fw-bold';
+            const pct = l.ordered_qty > 0
+                ? Math.min(100, Math.round((l.delivered_qty / l.ordered_qty) * 100))
+                : 0;
+            const barCls = pct === 100 ? 'bg-success' : pct > 0 ? 'bg-warning' : 'bg-secondary';
+
+            return `<tr>
+                <td class="ps-3" style="max-width:260px">
+                    <span class="fw-medium">${l.product_name}</span>
+                </td>
+                <td class="text-center">${l.ordered_qty.toLocaleString('es-MX')}</td>
+                <td class="text-center">
+                    <div class="d-flex align-items-center gap-2 justify-content-center">
+                        <div class="progress flex-grow-1" style="height:6px;min-width:60px;max-width:90px">
+                            <div class="progress-bar ${barCls}" style="width:${pct}%"></div>
+                        </div>
+                        <span class="small">${l.delivered_qty.toLocaleString('es-MX')}</span>
+                    </div>
+                </td>
+                <td class="text-center">
+                    <span class="${stockCls}">${l.qty_available.toLocaleString('es-MX')}</span>
+                </td>
+                <td class="text-end pe-3 text-muted small">
+                    $${l.price_subtotal.toLocaleString('es-MX', {minimumFractionDigits:2})}
+                </td>
+            </tr>`;
+        }).join('');
+
+        return `
+        <div class="card mb-3 shadow-sm sales-card" data-partner="${o.partner.toLowerCase()}" data-name="${o.name.toLowerCase()}" data-delivery="${o.delivery_status}">
+            <div class="card-header d-flex align-items-center gap-2 flex-wrap py-2">
+                <span class="fw-bold fs-6">${o.name}</span>
+                <span class="badge ${state.cls}">${state.text}</span>
+                <span class="badge ${dlv.cls}">${dlv.text}</span>
+                <span class="ms-auto fw-semibold text-muted small">
+                    <i class="fas fa-user me-1"></i>${o.partner}
+                </span>
+                <span class="text-muted small">
+                    <i class="fas fa-calendar me-1"></i>${o.date}
+                </span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0 align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="ps-3">Producto</th>
+                                <th class="text-center">Ordenado</th>
+                                <th class="text-center">Entregado</th>
+                                <th class="text-center">En Stock</th>
+                                <th class="text-end pe-3">Subtotal</th>
+                            </tr>
+                        </thead>
+                        <tbody>${linesHtml}</tbody>
+                        <tfoot class="table-light">
+                            <tr>
+                                <td colspan="4" class="text-end pe-2 fw-semibold ps-3">Total</td>
+                                <td class="text-end pe-3 fw-bold">
+                                    $${o.amount_total.toLocaleString('es-MX', {minimumFractionDigits:2})}
+                                </td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>`;
+    }).join('');
+
+    document.getElementById('salesFilterCount').textContent = `${orders.length} órdenes`;
+}
+
+function filterSales() {
+    const search  = document.getElementById('salesSearch').value.toLowerCase().trim();
+    const dlvFilt = document.getElementById('salesDeliveryFilter').value;
+
+    const filtered = _salesData.filter(o => {
+        const matchText = !search ||
+            o.partner.toLowerCase().includes(search) ||
+            o.name.toLowerCase().includes(search) ||
+            o.lines.some(l => l.product_name.toLowerCase().includes(search));
+        const matchDlv  = !dlvFilt || o.delivery_status === dlvFilt;
+        return matchText && matchDlv;
+    });
+
+    renderSales(filtered);
+}
+
+document.getElementById('loadSalesBtn').addEventListener('click', loadSales);
+document.getElementById('salesSearch').addEventListener('input', filterSales);
+document.getElementById('salesDeliveryFilter').addEventListener('change', filterSales);
 </script>
 {% endblock %}

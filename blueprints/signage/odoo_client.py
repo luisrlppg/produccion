@@ -66,7 +66,8 @@ def get_reordering_rules(models, uid):
 def get_products_stock(models, uid, product_ids):
     return _read(
         models, uid, 'product.product', product_ids,
-        ['name', 'qty_available', 'virtual_available'],
+        ['name', 'qty_available', 'virtual_available',
+         'product_template_attribute_value_ids', 'product_tmpl_id'],
     )
 
 
@@ -106,7 +107,85 @@ def get_manufacturing_totals_by_category(models, uid, orders):
     return categories
 
 
-def get_low_stock_products(models, uid):
+def get_sales_orders(models, uid):
+    """
+    Trae órdenes de venta confirmadas con sus líneas, cliente,
+    estado de entrega y stock disponible de cada producto.
+    Retorna una lista de órdenes con sus líneas enriquecidas.
+    """
+    # 1. Órdenes de venta confirmadas o en progreso
+    orders = models.execute_kw(
+        ODOO_DB, uid, ODOO_PASSWORD,
+        'sale.order', 'search_read',
+        [[('state', 'in', ['sale', 'done'])]],
+        {'fields': ['name', 'partner_id', 'date_order', 'state',
+                    'delivery_status', 'order_line', 'amount_total'],
+         'order': 'date_order desc',
+         'limit': 100},
+    )
+    if not orders:
+        return []
+
+    # 2. Líneas de venta — una sola llamada batch
+    all_line_ids = [lid for o in orders for lid in o['order_line']]
+    lines_raw = models.execute_kw(
+        ODOO_DB, uid, ODOO_PASSWORD,
+        'sale.order.line', 'read',
+        [all_line_ids],
+        {'fields': ['order_id', 'product_id', 'product_uom_qty',
+                    'qty_delivered', 'qty_invoiced', 'price_unit', 'price_subtotal']},
+    )
+
+    # 3. Stock disponible — una sola llamada batch con todos los product_ids únicos
+    product_ids = list({l['product_id'][0] for l in lines_raw if l.get('product_id')})
+    stock_raw = _read(models, uid, 'product.product', product_ids, ['qty_available'])
+    stock_map = {p['id']: p['qty_available'] for p in stock_raw}
+
+    # 4. Agrupar líneas por orden
+    lines_by_order = {}
+    for line in lines_raw:
+        oid = line['order_id'][0]
+        lines_by_order.setdefault(oid, []).append(line)
+
+    # 5. Construir resultado final
+    result = []
+    for o in orders:
+        lines = []
+        for l in lines_by_order.get(o['id'], []):
+            pid = l['product_id'][0] if l.get('product_id') else None
+            lines.append({
+                'product_name':   l['product_id'][1] if l.get('product_id') else '—',
+                'ordered_qty':    l['product_uom_qty'],
+                'delivered_qty':  l['qty_delivered'],
+                'qty_available':  stock_map.get(pid, 0) if pid else 0,
+                'price_unit':     l['price_unit'],
+                'price_subtotal': l['price_subtotal'],
+            })
+
+        # Estado de entrega normalizado
+        delivery_status = o.get('delivery_status', '')
+        if not delivery_status:
+            # Calcular desde líneas si Odoo no lo devuelve
+            total_ord = sum(l['ordered_qty']   for l in lines)
+            total_del = sum(l['delivered_qty'] for l in lines)
+            if total_del == 0:
+                delivery_status = 'pending'
+            elif total_del >= total_ord:
+                delivery_status = 'full'
+            else:
+                delivery_status = 'partial'
+
+        result.append({
+            'id':              o['id'],
+            'name':            o['name'],
+            'partner':         o['partner_id'][1] if o.get('partner_id') else '—',
+            'date':            o['date_order'][:10] if o.get('date_order') else '—',
+            'state':           o['state'],
+            'delivery_status': delivery_status,
+            'amount_total':    o.get('amount_total', 0),
+            'lines':           lines,
+        })
+    return result
     rules = get_reordering_rules(models, uid)
     if not rules:
         return []
@@ -118,15 +197,40 @@ def get_low_stock_products(models, uid):
 
     products = get_products_stock(models, uid, list(reorder_map.keys()))
 
+    # ── Batch: recolectar todos los IDs de atributos de variante de una vez ───
+    # En lugar de hacer 1 llamada XML-RPC por producto, juntamos todos los IDs
+    # y hacemos UNA sola llamada para obtener todos los valores de atributo.
+    all_attr_ids = []
+    for p in products:
+        all_attr_ids.extend(p.get('product_template_attribute_value_ids') or [])
+
+    attr_name_map = {}  # id → nombre del valor de atributo
+    if all_attr_ids:
+        records = models.execute_kw(
+            ODOO_DB, uid, ODOO_PASSWORD,
+            'product.template.attribute.value', 'read',
+            [list(set(all_attr_ids))],
+            {'fields': ['name']},
+        )
+        attr_name_map = {r['id']: r['name'] for r in records}
+
+    # ── Filtrar y construir resultado ─────────────────────────────────────────
     low = []
     for p in products:
         pid     = p['id']
         min_qty = min(reorder_map[pid])
         current = p['qty_available']
         if current < min_qty:
+            attr_ids = p.get('product_template_attribute_value_ids') or []
+            variant  = ' / '.join(attr_name_map[i] for i in attr_ids if i in attr_name_map)
+
+            tmpl = p.get('product_tmpl_id')
+            base_name = tmpl[1] if isinstance(tmpl, (list, tuple)) and len(tmpl) > 1 else p['name']
+
             low.append({
                 'id':                 pid,
-                'name':               p['name'],
+                'name':               base_name,
+                'variant':            variant,
                 'qty_available':      current,
                 'virtual_available':  p['virtual_available'],
                 'reordering_min_qty': min_qty,

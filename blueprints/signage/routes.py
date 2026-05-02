@@ -184,6 +184,18 @@ def events():
     )
 
 
+@signage_bp.route('/sales-data')
+@login_required
+def sales_data():
+    """Trae órdenes de venta de Odoo. Fetch manual desde el cliente."""
+    try:
+        models, uid = odoo_client.connect()
+        orders = odoo_client.get_sales_orders(models, uid)
+        return jsonify({'orders': orders, 'now': datetime.now().strftime('%d/%m/%Y %H:%M:%S')})
+    except Exception as e:
+        return jsonify({'error': f'Error conectando a Odoo: {e}'}), 500
+
+
 # ── API de stock ───────────────────────────────────────────────────────────────
 
 @signage_bp.route('/check-stock', methods=['POST'])
