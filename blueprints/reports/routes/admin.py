@@ -33,7 +33,7 @@ def production_stats():
     json_reports = _read_json('data/production_details.json')
 
     if not csv_reports:
-        return render_template('reports/admin_production_stats.html',
+        return render_template('reports/panel_production_stats.html',
                                stats=None, get_text=get_text)
 
     # ── Helpers ────────────────────────────────────────────────────────────────
