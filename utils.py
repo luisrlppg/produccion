@@ -122,6 +122,7 @@ def get_next_report_id(report_type: str = 'production') -> int:
 def save_production_report(report_id, name, job_shift, date, workers, additional_notes,
                             timestamp, machine_data, assembly_data, stringing_data,
                             gluing_data, delivery_data, total_production, production_per_worker):
+    os.makedirs('data', exist_ok=True)
     csv_file   = 'data/production_reports.csv'
     file_exists = os.path.isfile(csv_file)
     machines   = {str(m[0]): m for m in machine_data}
@@ -168,6 +169,7 @@ def save_production_report(report_id, name, job_shift, date, workers, additional
 
 
 def save_report(data, report_type: str):
+    os.makedirs('data', exist_ok=True)
     csv_file   = f'data/{report_type}_reports.csv'
     file_exists = os.path.isfile(csv_file)
     with open(csv_file, 'a', newline='', encoding='utf-8') as f:
