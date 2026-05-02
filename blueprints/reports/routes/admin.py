@@ -9,24 +9,24 @@ from flask import (Blueprint, current_app, flash, redirect, render_template,
 from auth import login_required
 from utils import get_text
 
-admin_bp = Blueprint('admin', __name__)
+admin_bp = Blueprint('panel', __name__)
 
 
 # ── Vistas ─────────────────────────────────────────────────────────────────────
 
-@admin_bp.route('/admin')
+@admin_bp.route('/panel')
 @login_required
 def admin_dashboard():
-    return render_template('reports/admin_dashboard.html', get_text=get_text)
+    return render_template('reports/panel_dashboard.html', get_text=get_text)
 
 
-@admin_bp.route('/admin/production')
+@admin_bp.route('/panel/production')
 @login_required
 def admin_production():
-    return render_template('reports/admin_production.html', get_text=get_text)
+    return render_template('reports/panel_production.html', get_text=get_text)
 
 
-@admin_bp.route('/admin/production/stats')
+@admin_bp.route('/panel/production/stats')
 @login_required
 def production_stats():
     csv_reports  = _read_csv('data/production_reports.csv')
@@ -108,6 +108,9 @@ def production_stats():
                 'reports':    d['reports'],
                 'avg_per_worker': round(d['total'] / d['workers'], 1) if d['workers'] else 0,
             })
+    # Serializar shifts para el template
+    shifts_names  = [s['name']  for s in shifts_data]
+    shifts_totals = [s['total'] for s in shifts_data]
 
     # ── Top productos (desde JSON) ─────────────────────────────────────────────
     product_totals = defaultdict(lambda: {'ensamble': 0, 'ensartado': 0, 'pegado': 0, 'total': 0})
@@ -121,6 +124,9 @@ def production_stats():
                     product_totals[name]['total'] += qty
 
     top_products = sorted(product_totals.items(), key=lambda x: x[1]['total'], reverse=True)[:10]
+    # Serializar para el template (evitar tuplas en tojson)
+    top_products_names  = [name for name, _ in top_products]
+    top_products_totals = [data['total'] for _, data in top_products]
 
     # ── Máquinas: tipo de cepillo y color ─────────────────────────────────────
     brush_type_totals = defaultdict(int)
@@ -141,6 +147,11 @@ def production_stats():
 
     brush_types  = sorted(brush_type_totals.items(),  key=lambda x: x[1], reverse=True)
     brush_colors = sorted(brush_color_totals.items(), key=lambda x: x[1], reverse=True)
+    # Serializar para el template
+    brush_types_names   = [t for t, _ in brush_types]
+    brush_types_values  = [v for _, v in brush_types]
+    brush_colors_names  = [c for c, _ in brush_colors]
+    brush_colors_values = [v for _, v in brush_colors]
 
     # ── Mejor y peor día ──────────────────────────────────────────────────────
     best_day  = max(by_date.items(), key=lambda x: x[1]['total']) if by_date else None
@@ -167,11 +178,19 @@ def production_stats():
         'chart_efficiency': chart_efficiency,
         # Turnos
         'shifts_data':      shifts_data,
+        'shifts_names':     shifts_names,
+        'shifts_totals':    shifts_totals,
         # Productos
-        'top_products':     top_products,
+        'top_products':          top_products,
+        'top_products_names':    top_products_names,
+        'top_products_totals':   top_products_totals,
         # Máquinas
-        'brush_types':      brush_types,
-        'brush_colors':     brush_colors,
+        'brush_types':        brush_types,
+        'brush_types_names':  brush_types_names,
+        'brush_types_values': brush_types_values,
+        'brush_colors':        brush_colors,
+        'brush_colors_names':  brush_colors_names,
+        'brush_colors_values': brush_colors_values,
         # Días destacados
         'best_day':         best_day,
         'worst_day':        worst_day,
@@ -179,11 +198,11 @@ def production_stats():
         'recent':           recent,
     }
 
-    return render_template('reports/admin_production_stats.html',
+    return render_template('reports/panel_production_stats.html',
                            stats=stats, get_text=get_text)
 
 
-@admin_bp.route('/admin/production/view')
+@admin_bp.route('/panel/production/view')
 @login_required
 def production_view():
     selected_date  = request.args.get('date', '')
@@ -204,12 +223,12 @@ def production_view():
                 )
                 filtered.append({'csv': csv_r, 'json': json_d})
 
-    return render_template('reports/admin_production_view.html',
+    return render_template('reports/panel_production_view.html',
         reports=filtered, selected_date=selected_date,
         available_dates=available_dates, get_text=get_text)
 
 
-@admin_bp.route('/admin/personal')
+@admin_bp.route('/panel/personal')
 @login_required
 def admin_personal():
     reports = sorted(_read_csv('data/personal_reports.csv'),
@@ -217,7 +236,7 @@ def admin_personal():
     return render_template('reports/admin_personal.html', reports=reports, get_text=get_text)
 
 
-@admin_bp.route('/admin/company')
+@admin_bp.route('/panel/company')
 @login_required
 def admin_company():
     reports = sorted(_read_csv('data/company_reports.csv'),
@@ -225,7 +244,7 @@ def admin_company():
     return render_template('reports/admin_company.html', reports=reports, get_text=get_text)
 
 
-@admin_bp.route('/admin/reports')
+@admin_bp.route('/panel/reports')
 @login_required
 def admin_reports():
     reports = sorted(_read_csv('data/reports.csv'),
@@ -241,27 +260,27 @@ def uploaded_file(filename):
     return send_from_directory(current_app.config['UPLOAD_FOLDER'], filename)
 
 
-@admin_bp.route('/admin/download')
+@admin_bp.route('/panel/download')
 @login_required
 def download_csv():
     path = 'data/reports.csv'
     if os.path.exists(path):
         return send_file(path, as_attachment=True, download_name='reports.csv')
     flash('No hay reportes disponibles', 'error')
-    return redirect(url_for('admin.admin_dashboard'))
+    return redirect(url_for('panel.admin_dashboard'))
 
 
-@admin_bp.route('/admin/download/<report_type>')
+@admin_bp.route('/panel/download/<report_type>')
 @login_required
 def download_report_csv(report_type):
     if report_type not in ('production', 'personal', 'company'):
         flash('Tipo de reporte invalido', 'error')
-        return redirect(url_for('admin.admin_dashboard'))
+        return redirect(url_for('panel.admin_dashboard'))
     path = f'data/{report_type}_reports.csv'
     if os.path.exists(path):
         return send_file(path, as_attachment=True, download_name=f'{report_type}_reports.csv')
     flash(f'No hay reportes de {report_type} disponibles', 'error')
-    return redirect(url_for('admin.admin_dashboard'))
+    return redirect(url_for('panel.admin_dashboard'))
 
 
 # ── Helpers privados ───────────────────────────────────────────────────────────

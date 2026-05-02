@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Panel de Producción</h2>
+
+<div style="text-align: center; margin: 30px 0;">
+    <a href="{{ url_for('panel.admin_production') }}" class="btn" style="background: #28a745;">Reportes de Producción</a>
+</div>
+
+<div style="margin-top: 40px; font-size: 14px; color: #666;">
+    <ul>
+        <li><strong>Reportes de Producción:</strong> Datos diarios de producción, máquinas, ensamble y entregas</li>
+    </ul>
+</div>
+
+<div style="text-align: center; margin-top: 30px;">
+    <a href="{{ url_for('index') }}" class="btn" style="background: #6c757d;">Volver al Inicio</a>
+</div>
+{% endblock %}

@@ -5,17 +5,17 @@
 
 <div style="text-align: center; margin: 40px 0;">
     <div style="display: flex; gap: 20px; justify-content: center; flex-wrap: wrap;">
-        <a href="{{ url_for('admin.production_stats') }}"
+        <a href="{{ url_for('panel.production_stats') }}"
            class="btn btn-primary" style="padding: 16px 32px; font-size: 1rem;">
             📈 Estadísticas
         </a>
 
-        <a href="{{ url_for('admin.production_view') }}" 
+        <a href="{{ url_for('panel.production_view') }}" 
            class="btn btn-success" style="padding: 16px 32px; font-size: 1rem;">
             👁️ Ver Reportes
         </a>
 
-        <a href="{{ url_for('admin.download_report_csv', report_type='production') }}" 
+        <a href="{{ url_for('panel.download_report_csv', report_type='production') }}" 
            class="btn btn-info" style="padding: 16px 32px; font-size: 1rem;">
             📊 Descargar CSV
         </a>
@@ -23,6 +23,6 @@
 </div>
 
 <div style="margin-top: 40px; text-align: center;">
-    <a href="{{ url_for('admin.admin_dashboard') }}" class="btn btn-secondary">Volver al Panel</a>
+    <a href="{{ url_for('panel.admin_dashboard') }}" class="btn btn-secondary">Volver al Panel</a>
 </div>
 {% endblock %}

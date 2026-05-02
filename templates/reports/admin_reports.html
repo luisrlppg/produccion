@@ -3,7 +3,7 @@
 {% block content %}
 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
     <h2>Reportes</h2>
-    <a href="{{ url_for('admin.download_csv') }}" class="btn">Descargar CSV</a>
+    <a href="{{ url_for('panel.download_csv') }}" class="btn">Descargar CSV</a>
 </div>
 
 {% if reports %}
@@ -43,7 +43,7 @@
         {% if report.Photo_Path %}
         <div style="margin-top: 15px;">
             <strong>Foto:</strong><br>
-            <img src="{{ url_for('admin.uploaded_file', filename=report.Photo_Path.split('/')[-1]) }}" 
+            <img src="{{ url_for('panel.uploaded_file', filename=report.Photo_Path.split('/')[-1]) }}" 
                  style="max-width: 300px; max-height: 300px; border: 1px solid #ddd; border-radius: 4px; margin-top: 5px;">
         </div>
         {% endif %}

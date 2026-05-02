@@ -43,7 +43,7 @@ def submit_report():
     try:
         nm  = NotificationManager()
         base_url = os.getenv('APP_BASE_URL', '').rstrip('/')
-        report_url = f'{base_url}/admin/company' if base_url else None
+        report_url = f'{base_url}/panel/company' if base_url else None
         msg = build_simple_message(report_id, 'company', item_name, failure_description, timestamp,
                                    report_url=report_url)
         nm.broadcast(

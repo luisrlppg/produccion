@@ -4,8 +4,8 @@
 <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:24px;">
     <h2 style="margin:0;">📈 Estadísticas de Producción</h2>
     <div style="display:flex; gap:10px; flex-wrap:wrap;">
-        <a href="{{ url_for('admin.production_view') }}" class="btn btn-success" style="padding:8px 16px;">👁️ Ver Reportes</a>
-        <a href="{{ url_for('admin.admin_production') }}" class="btn btn-secondary" style="padding:8px 16px;">← Volver</a>
+        <a href="{{ url_for('panel.production_view') }}" class="btn btn-success" style="padding:8px 16px;">👁️ Ver Reportes</a>
+        <a href="{{ url_for('panel.admin_production') }}" class="btn btn-secondary" style="padding:8px 16px;">← Volver</a>
     </div>
 </div>
 
@@ -226,7 +226,7 @@
                     <td style="text-align:right; font-weight:600;">{{ "{:,}".format(r['Produccion Total'] | int) }}</td>
                     <td style="text-align:right;">{{ r['Produccion por Trabajador'] }}</td>
                     <td>
-                        <a href="{{ url_for('admin.production_view') }}?date={{ r['Fecha'] }}"
+                        <a href="{{ url_for('panel.production_view') }}?date={{ r['Fecha'] }}"
                            class="btn btn-info" style="padding:4px 10px; font-size:.8rem;">Ver</a>
                     </td>
                 </tr>
@@ -354,9 +354,9 @@ makeChart('chartEfficiency', 'line',
 
 // Turnos (doughnut)
 makeChart('chartShifts', 'doughnut',
-    {{ stats.shifts_data | map(attribute='name') | list | tojson }},
+    {{ stats.shifts_names | tojson }},
     [{
-        data: {{ stats.shifts_data | map(attribute='total') | list | tojson }},
+        data: {{ stats.shifts_totals | tojson }},
         backgroundColor: ['#f6ad55','#667eea','#9f7aea'],
         borderWidth: 2,
     }],
@@ -366,10 +366,10 @@ makeChart('chartShifts', 'doughnut',
 // Top productos (horizontal bar)
 {% if stats.top_products %}
 makeChart('chartProducts', 'bar',
-    {{ stats.top_products | map(attribute=0) | list | tojson }},
+    {{ stats.top_products_names | tojson }},
     [{
         label: 'Unidades',
-        data:  {{ stats.top_products | map(attribute=1) | map(attribute='total') | list | tojson }},
+        data:  {{ stats.top_products_totals | tojson }},
         backgroundColor: PALETTE,
         borderRadius: 4,
     }],
@@ -384,9 +384,9 @@ makeChart('chartProducts', 'bar',
 // Tipo de cepillo
 {% if stats.brush_types %}
 makeChart('chartBrushType', 'doughnut',
-    {{ stats.brush_types | map(attribute=0) | list | tojson }},
+    {{ stats.brush_types_names | tojson }},
     [{
-        data: {{ stats.brush_types | map(attribute=1) | list | tojson }},
+        data: {{ stats.brush_types_values | tojson }},
         backgroundColor: PALETTE,
         borderWidth: 2,
     }],
@@ -397,9 +397,9 @@ makeChart('chartBrushType', 'doughnut',
 // Color
 {% if stats.brush_colors %}
 makeChart('chartBrushColor', 'doughnut',
-    {{ stats.brush_colors | map(attribute=0) | list | tojson }},
+    {{ stats.brush_colors_names | tojson }},
     [{
-        data: {{ stats.brush_colors | map(attribute=1) | list | tojson }},
+        data: {{ stats.brush_colors_values | tojson }},
         backgroundColor: ['#1a1a1a','#795548','#1565c0','#2e7d32','#00838f','#e91e8c','#6a1b9a','#e2e8f0'],
         borderWidth: 2,
     }],

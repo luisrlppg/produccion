@@ -108,7 +108,7 @@ def submit_report():
     try:
         nm  = NotificationManager()
         base_url = os.getenv('APP_BASE_URL', '').rstrip('/')
-        report_url = f'{base_url}/admin/production/view?date={date}' if base_url else None
+        report_url = f'{base_url}/panel/production/view?date={date}' if base_url else None
         msg = build_production_message(
             report_id, name, job_shift, date, quantity_persons,
             machine_data, assembly_data, stringing_data, gluing_data, delivery_data,
