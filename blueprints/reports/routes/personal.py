@@ -1,3 +1,5 @@
+import os
+
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from datetime import datetime
 
@@ -30,7 +32,10 @@ def submit_report():
 
     try:
         nm  = NotificationManager()
-        msg = build_simple_message(report_id, 'personal', item_name, failure_description, timestamp)
+        base_url = os.getenv('APP_BASE_URL', '').rstrip('/')
+        report_url = f'{base_url}/admin/personal' if base_url else None
+        msg = build_simple_message(report_id, 'personal', item_name, failure_description, timestamp,
+                                   report_url=report_url)
         nm.broadcast(
             subject=f'Nuevo Reporte Personal #{report_id}',
             text=msg,

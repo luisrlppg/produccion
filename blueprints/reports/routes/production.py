@@ -2,6 +2,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from datetime import datetime
 import json
+import os
 
 from auth import login_required
 from notifications import NotificationManager
@@ -106,10 +107,13 @@ def submit_report():
     # ── Notificaciones ─────────────────────────────────────────────────────────
     try:
         nm  = NotificationManager()
+        base_url = os.getenv('APP_BASE_URL', '').rstrip('/')
+        report_url = f'{base_url}/admin/production/view?date={date}' if base_url else None
         msg = build_production_message(
             report_id, name, job_shift, date, quantity_persons,
             machine_data, assembly_data, stringing_data, gluing_data, delivery_data,
             total_production, production_per_worker, additional_notes, timestamp,
+            report_url=report_url,
         )
         email_body = build_production_email_body(
             report_id, name, job_shift, date, quantity_persons,

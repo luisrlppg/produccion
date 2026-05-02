@@ -2,19 +2,19 @@
     <h3>{{ get_text('deliveries') }}</h3>
 
     <div id="delivery_rows">
-        <div class="delivery-row dynamic-row">
-            <div class="field-lg">
+        <div class="delivery-row prod-row prod-row--delivery">
+            <div class="prod-row-name">
                 <label>Cliente:</label>
                 <input type="text" class="delivery-customer" placeholder="Nombre del cliente">
             </div>
-            <div class="field-md">
+            <div class="prod-row-desc">
                 <label>Descripcion del producto:</label>
                 <input type="text" class="delivery-desc" placeholder="Descripcion del producto entregado">
             </div>
         </div>
     </div>
 
-    <button type="button" onclick="addDeliveryRow()" class="btn btn-info" style="margin-top: 8px;">
+    <button type="button" onclick="addDeliveryRow()" class="btn btn-info btn-add-row">
         + Agregar entrega
     </button>
 

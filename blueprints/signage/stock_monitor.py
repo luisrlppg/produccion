@@ -87,9 +87,16 @@ class StockMonitor:
                     'sin cambios nuevos, no se enviaron notificaciones'
                 )
 
-            text, html, telegram = self.nm.format_low_stock_message(to_notify)
+            text, html, telegram = self.nm.format_low_stock_message(
+                to_notify,
+                total_low_count=len(current_low),
+            )
             sent = self.nm.broadcast(
-                subject=f'🚨 Stock Bajo: {len(to_notify)} producto(s) nuevo(s)',
+                subject=(
+                    f'🚨 Stock Bajo: {to_notify[0]["name"]}'
+                    if len(to_notify) == 1
+                    else f'🚨 Stock Bajo: {len(to_notify)} productos nuevos'
+                ),
                 text=text,
                 html=html,
                 telegram_text=telegram,

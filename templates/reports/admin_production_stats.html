@@ -1,0 +1,410 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:24px;">
+    <h2 style="margin:0;">📈 Estadísticas de Producción</h2>
+    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <a href="{{ url_for('admin.production_view') }}" class="btn btn-success" style="padding:8px 16px;">👁️ Ver Reportes</a>
+        <a href="{{ url_for('admin.admin_production') }}" class="btn btn-secondary" style="padding:8px 16px;">← Volver</a>
+    </div>
+</div>
+
+{% if not stats %}
+<div class="section-card" style="text-align:center; padding:48px;">
+    <p style="font-size:1.1rem; color:#718096;">No hay reportes de producción disponibles todavía.</p>
+</div>
+{% else %}
+
+{# ── KPIs ──────────────────────────────────────────────────────────────────── #}
+<div class="stats-kpi-grid">
+    <div class="kpi-card kpi-blue">
+        <div class="kpi-value">{{ stats.total_reports }}</div>
+        <div class="kpi-label">Reportes totales</div>
+    </div>
+    <div class="kpi-card kpi-green">
+        <div class="kpi-value">{{ "{:,}".format(stats.total_production) }}</div>
+        <div class="kpi-label">Unidades producidas</div>
+    </div>
+    <div class="kpi-card kpi-purple">
+        <div class="kpi-value">{{ stats.avg_efficiency }}</div>
+        <div class="kpi-label">Promedio uds/trabajador</div>
+    </div>
+    <div class="kpi-card kpi-orange">
+        <div class="kpi-value">{{ stats.best_efficiency }}</div>
+        <div class="kpi-label">Mejor eficiencia registrada</div>
+    </div>
+</div>
+
+{# ── Días destacados ───────────────────────────────────────────────────────── #}
+{% if stats.best_day or stats.worst_day %}
+<div class="stats-row-2">
+    {% if stats.best_day %}
+    <div class="section-card highlight-green">
+        <div style="font-size:.8rem; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:#276749; margin-bottom:6px;">🏆 Mejor día</div>
+        <div style="font-size:1.4rem; font-weight:700; color:#22543d;">{{ "{:,}".format(stats.best_day[1].total) }} uds</div>
+        <div style="color:#276749; font-size:.9rem;">{{ stats.best_day[0] }} · {{ stats.best_day[1].reports }} reporte(s)</div>
+    </div>
+    {% endif %}
+    {% if stats.worst_day %}
+    <div class="section-card highlight-gray">
+        <div style="font-size:.8rem; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:#4a5568; margin-bottom:6px;">📉 Día más bajo</div>
+        <div style="font-size:1.4rem; font-weight:700; color:#2d3748;">{{ "{:,}".format(stats.worst_day[1].total) }} uds</div>
+        <div style="color:#718096; font-size:.9rem;">{{ stats.worst_day[0] }} · {{ stats.worst_day[1].reports }} reporte(s)</div>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
+{# ── Gráfica de producción por fecha ──────────────────────────────────────── #}
+{% if stats.chart_dates %}
+<div class="section-card">
+    <h3>Producción diaria</h3>
+    <div class="chart-wrap">
+        <canvas id="chartProduction"></canvas>
+    </div>
+</div>
+
+{# ── Eficiencia por fecha ──────────────────────────────────────────────────── #}
+<div class="section-card">
+    <h3>Eficiencia por día <span style="font-size:.8rem; font-weight:400; color:#718096;">(uds / trabajador)</span></h3>
+    <div class="chart-wrap">
+        <canvas id="chartEfficiency"></canvas>
+    </div>
+</div>
+{% endif %}
+
+{# ── Turnos ────────────────────────────────────────────────────────────────── #}
+{% if stats.shifts_data %}
+<div class="stats-row-2">
+    <div class="section-card">
+        <h3>Producción por turno</h3>
+        <div class="chart-wrap chart-wrap-sm">
+            <canvas id="chartShifts"></canvas>
+        </div>
+    </div>
+    <div class="section-card">
+        <h3>Detalle por turno</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Turno</th>
+                    <th style="text-align:right;">Total uds</th>
+                    <th style="text-align:right;">Reportes</th>
+                    <th style="text-align:right;">Uds/trabajador</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in stats.shifts_data %}
+                <tr>
+                    <td>
+                        {% if s.name == 'Matutino' %}🌅
+                        {% elif s.name == 'Vespertino' %}🌇
+                        {% elif s.name == 'Nocturno' %}🌙
+                        {% else %}🔄{% endif %}
+                        {{ s.name }}
+                    </td>
+                    <td style="text-align:right; font-weight:600;">{{ "{:,}".format(s.total) }}</td>
+                    <td style="text-align:right;">{{ s.reports }}</td>
+                    <td style="text-align:right;">{{ s.avg_per_worker }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+{# ── Top productos ─────────────────────────────────────────────────────────── #}
+{% if stats.top_products %}
+<div class="section-card">
+    <h3>Top 10 productos fabricados</h3>
+    <div class="stats-row-2" style="gap:16px;">
+        <div class="chart-wrap">
+            <canvas id="chartProducts"></canvas>
+        </div>
+        <div style="overflow-x:auto;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Producto</th>
+                        <th style="text-align:right;">Total</th>
+                        <th style="text-align:right;">Ensamble</th>
+                        <th style="text-align:right;">Ensartado</th>
+                        <th style="text-align:right;">Pegado</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for name, data in stats.top_products %}
+                    <tr>
+                        <td style="color:#a0aec0; font-size:.85rem;">{{ loop.index }}</td>
+                        <td style="font-weight:500;">{{ name }}</td>
+                        <td style="text-align:right; font-weight:700; color:#2b6cb0;">{{ "{:,}".format(data.total) }}</td>
+                        <td style="text-align:right; color:#276749;">{{ "{:,}".format(data.ensamble) if data.ensamble else '—' }}</td>
+                        <td style="text-align:right; color:#744210;">{{ "{:,}".format(data.ensartado) if data.ensartado else '—' }}</td>
+                        <td style="text-align:right; color:#702459;">{{ "{:,}".format(data.pegado) if data.pegado else '—' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{# ── Máquinas ──────────────────────────────────────────────────────────────── #}
+{% if stats.brush_types or stats.brush_colors %}
+<div class="stats-row-2">
+    {% if stats.brush_types %}
+    <div class="section-card">
+        <h3>Producción por tipo de cepillo</h3>
+        <div class="chart-wrap chart-wrap-sm">
+            <canvas id="chartBrushType"></canvas>
+        </div>
+        <table style="margin-top:12px;">
+            <thead><tr><th>Tipo</th><th style="text-align:right;">Unidades</th></tr></thead>
+            <tbody>
+                {% for btype, qty in stats.brush_types %}
+                <tr>
+                    <td>{{ btype }}</td>
+                    <td style="text-align:right; font-weight:600;">{{ "{:,}".format(qty) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+    {% if stats.brush_colors %}
+    <div class="section-card">
+        <h3>Producción por color</h3>
+        <div class="chart-wrap chart-wrap-sm">
+            <canvas id="chartBrushColor"></canvas>
+        </div>
+        <table style="margin-top:12px;">
+            <thead><tr><th>Color</th><th style="text-align:right;">Unidades</th></tr></thead>
+            <tbody>
+                {% for color, qty in stats.brush_colors %}
+                <tr>
+                    <td>
+                        <span class="color-dot color-{{ color | lower }}"></span>
+                        {{ color }}
+                    </td>
+                    <td style="text-align:right; font-weight:600;">{{ "{:,}".format(qty) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
+{# ── Reportes recientes ────────────────────────────────────────────────────── #}
+{% if stats.recent %}
+<div class="section-card">
+    <h3>Últimos reportes</h3>
+    <div style="overflow-x:auto;">
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Nombre</th>
+                    <th>Turno</th>
+                    <th>Fecha</th>
+                    <th style="text-align:right;">Total uds</th>
+                    <th style="text-align:right;">Uds/trabajador</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in stats.recent %}
+                <tr>
+                    <td style="color:#a0aec0;">{{ r['ID Reporte'] }}</td>
+                    <td>{{ r['Nombre'] }}</td>
+                    <td>{{ r['Turno'] }}</td>
+                    <td>{{ r['Fecha'] }}</td>
+                    <td style="text-align:right; font-weight:600;">{{ "{:,}".format(r['Produccion Total'] | int) }}</td>
+                    <td style="text-align:right;">{{ r['Produccion por Trabajador'] }}</td>
+                    <td>
+                        <a href="{{ url_for('admin.production_view') }}?date={{ r['Fecha'] }}"
+                           class="btn btn-info" style="padding:4px 10px; font-size:.8rem;">Ver</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+{% endif %}{# /if stats #}
+
+{# ── Estilos ───────────────────────────────────────────────────────────────── #}
+<style>
+.stats-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+}
+.kpi-card {
+    border-radius: 12px;
+    padding: 20px 18px;
+    text-align: center;
+}
+.kpi-value { font-size: 1.9rem; font-weight: 800; line-height: 1.1; }
+.kpi-label { font-size: .8rem; font-weight: 600; text-transform: uppercase;
+             letter-spacing: .5px; margin-top: 6px; opacity: .75; }
+.kpi-blue   { background:#ebf8ff; color:#2b6cb0; }
+.kpi-green  { background:#f0fff4; color:#276749; }
+.kpi-purple { background:#faf5ff; color:#553c9a; }
+.kpi-orange { background:#fffaf0; color:#c05621; }
+
+.stats-row-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 24px;
+}
+
+.highlight-green { background:#f0fff4; border-color:#9ae6b4; }
+.highlight-gray  { background:#f7fafc; }
+
+.chart-wrap    { position:relative; height:260px; }
+.chart-wrap-sm { position:relative; height:200px; }
+
+.color-dot {
+    display: inline-block;
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    margin-right: 6px;
+    vertical-align: middle;
+    border: 1px solid rgba(0,0,0,.15);
+}
+.color-negro       { background:#1a1a1a; }
+.color-cafe        { background:#795548; }
+.color-azul        { background:#1565c0; }
+.color-verde       { background:#2e7d32; }
+.color-turquesa    { background:#00838f; }
+.color-rosa        { background:#e91e8c; }
+.color-morado      { background:#6a1b9a; }
+.color-transparente{ background:#e2e8f0; }
+
+@media (max-width: 700px) {
+    .stats-kpi-grid  { grid-template-columns: 1fr 1fr; }
+    .stats-row-2     { grid-template-columns: 1fr; }
+    .kpi-value       { font-size: 1.5rem; }
+}
+@media (max-width: 400px) {
+    .stats-kpi-grid  { grid-template-columns: 1fr; }
+}
+</style>
+
+{# ── Scripts Chart.js ──────────────────────────────────────────────────────── #}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+const PALETTE = ['#667eea','#48bb78','#ed8936','#fc8181','#4299e1','#9f7aea','#38b2ac','#f6ad55','#68d391','#b794f4'];
+
+function makeChart(id, type, labels, datasets, opts) {
+    const ctx = document.getElementById(id);
+    if (!ctx) return;
+    new Chart(ctx, {
+        type,
+        data: { labels, datasets },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } },
+            ...opts,
+        },
+    });
+}
+
+// Producción diaria
+makeChart('chartProduction', 'bar',
+    {{ stats.chart_dates | tojson }},
+    [{
+        label: 'Unidades producidas',
+        data:  {{ stats.chart_production | tojson }},
+        backgroundColor: 'rgba(102,126,234,.7)',
+        borderColor: '#667eea',
+        borderWidth: 1,
+        borderRadius: 4,
+    }],
+    { scales: { y: { beginAtZero: true, ticks: { font: { size: 11 } } },
+                x: { ticks: { font: { size: 10 }, maxRotation: 45 } } } }
+);
+
+// Eficiencia diaria
+makeChart('chartEfficiency', 'line',
+    {{ stats.chart_dates | tojson }},
+    [{
+        label: 'Uds / trabajador',
+        data:  {{ stats.chart_efficiency | tojson }},
+        borderColor: '#48bb78',
+        backgroundColor: 'rgba(72,187,120,.1)',
+        borderWidth: 2,
+        pointRadius: 3,
+        tension: 0.3,
+        fill: true,
+    }],
+    { scales: { y: { beginAtZero: true, ticks: { font: { size: 11 } } },
+                x: { ticks: { font: { size: 10 }, maxRotation: 45 } } } }
+);
+
+// Turnos (doughnut)
+makeChart('chartShifts', 'doughnut',
+    {{ stats.shifts_data | map(attribute='name') | list | tojson }},
+    [{
+        data: {{ stats.shifts_data | map(attribute='total') | list | tojson }},
+        backgroundColor: ['#f6ad55','#667eea','#9f7aea'],
+        borderWidth: 2,
+    }],
+    {}
+);
+
+// Top productos (horizontal bar)
+{% if stats.top_products %}
+makeChart('chartProducts', 'bar',
+    {{ stats.top_products | map(attribute=0) | list | tojson }},
+    [{
+        label: 'Unidades',
+        data:  {{ stats.top_products | map(attribute=1) | map(attribute='total') | list | tojson }},
+        backgroundColor: PALETTE,
+        borderRadius: 4,
+    }],
+    {
+        indexAxis: 'y',
+        scales: { x: { beginAtZero: true, ticks: { font: { size: 11 } } },
+                  y: { ticks: { font: { size: 11 } } } },
+    }
+);
+{% endif %}
+
+// Tipo de cepillo
+{% if stats.brush_types %}
+makeChart('chartBrushType', 'doughnut',
+    {{ stats.brush_types | map(attribute=0) | list | tojson }},
+    [{
+        data: {{ stats.brush_types | map(attribute=1) | list | tojson }},
+        backgroundColor: PALETTE,
+        borderWidth: 2,
+    }],
+    {}
+);
+{% endif %}
+
+// Color
+{% if stats.brush_colors %}
+makeChart('chartBrushColor', 'doughnut',
+    {{ stats.brush_colors | map(attribute=0) | list | tojson }},
+    [{
+        data: {{ stats.brush_colors | map(attribute=1) | list | tojson }},
+        backgroundColor: ['#1a1a1a','#795548','#1565c0','#2e7d32','#00838f','#e91e8c','#6a1b9a','#e2e8f0'],
+        borderWidth: 2,
+    }],
+    {}
+);
+{% endif %}
+</script>
+{% endblock %}

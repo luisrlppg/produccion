@@ -262,41 +262,68 @@ class NotificationManager:
 
     # ── Formateo de mensajes de stock ──────────────────────────────────────────
 
-    def format_low_stock_message(self, low_stock_products: list) -> tuple:
+    def format_low_stock_message(self, new_products: list,
+                                  total_low_count: int | None = None) -> tuple:
         """
         Retorna (text_message, html_message, telegram_message) para alertas de stock.
+
+        new_products     — productos que acaban de entrar en stock bajo (1 o más).
+        total_low_count  — total de productos actualmente en bajo stock (para el link).
         """
-        if not low_stock_products:
+        if not new_products:
             return None, None, None
 
         timestamp = datetime.now().strftime('%d/%m/%Y %H:%M')
+        base_url  = os.getenv('APP_BASE_URL', '').rstrip('/')
+        stock_url = f'{base_url}/signage' if base_url else None
 
-        # Texto plano
-        text = f'🚨 ALERTA DE STOCK BAJO - {timestamp}\n\nProductos por debajo del mínimo:\n\n'
-        for p in low_stock_products:
-            text += (
-                f"• {p['name']}\n"
-                f"  Actual: {p['qty_available']:.2f}  |  "
-                f"Mínimo: {p['reordering_min_qty']:.2f}  |  "
-                f"Dif: {p['difference']:.2f}\n\n"
+        # Cuántos más hay en bajo stock además del/los nuevos
+        others = (total_low_count or len(new_products)) - len(new_products)
+
+        # ── Texto plano (WhatsApp) ─────────────────────────────────────────
+        if len(new_products) == 1:
+            p = new_products[0]
+            text = (
+                f'🚨 STOCK BAJO — {p["name"]}\n'
+                f'📦 Actual: {p["qty_available"]:.0f}  |  Mín: {p["reordering_min_qty"]:.0f}'
+                f'  |  Dif: {p["difference"]:.0f}\n'
             )
-        text += 'Es necesario programar la fabricación.'
+        else:
+            text = f'🚨 STOCK BAJO — {len(new_products)} productos nuevos\n'
+            for p in new_products:
+                text += f'• {p["name"]}: {p["qty_available"]:.0f} / {p["reordering_min_qty"]:.0f}\n'
 
-        # Telegram HTML
-        telegram = f'🚨 <b>ALERTA DE STOCK BAJO</b>\n📅 <i>{timestamp}</i>\n\n'
-        for i, p in enumerate(low_stock_products, 1):
+        if others > 0:
+            text += f'\n+{others} producto(s) más en bajo stock.'
+        if stock_url:
+            text += f'\n🔗 Ver stock: {stock_url}'
+
+        # ── Telegram HTML ──────────────────────────────────────────────────
+        if len(new_products) == 1:
+            p = new_products[0]
             emoji = '🔴' if p['difference'] < -10 else ('🟡' if p['difference'] < -5 else '🟠')
-            telegram += (
-                f"{emoji} <b>{i}. {p['name']}</b>\n"
-                f"   📦 Actual: <code>{p['qty_available']:.2f}</code>\n"
-                f"   📊 Mínimo: <code>{p['reordering_min_qty']:.2f}</code>\n"
-                f"   ⚠️ Diferencia: <code>{p['difference']:.2f}</code>\n\n"
+            telegram = (
+                f'{emoji} <b>Stock bajo: {p["name"]}</b>\n'
+                f'📦 <code>{p["qty_available"]:.0f}</code> / mín <code>{p["reordering_min_qty"]:.0f}</code>'
+                f'  ⚠️ <code>{p["difference"]:.0f}</code>'
             )
-        telegram += '⚡ <b>Programar fabricación de estos productos.</b>'
+        else:
+            telegram = f'🚨 <b>{len(new_products)} productos en stock bajo</b>\n'
+            for p in new_products:
+                emoji = '🔴' if p['difference'] < -10 else ('🟡' if p['difference'] < -5 else '🟠')
+                telegram += (
+                    f'{emoji} <b>{p["name"]}</b>: '
+                    f'<code>{p["qty_available"]:.0f}</code> / <code>{p["reordering_min_qty"]:.0f}</code>\n'
+                )
 
-        # Email HTML
+        if others > 0:
+            telegram += f'\n<i>+{others} producto(s) más en bajo stock.</i>'
+        if stock_url:
+            telegram += f'\n🔗 <a href="{stock_url}">Ver todos</a>'
+
+        # ── Email HTML ─────────────────────────────────────────────────────
         rows = ''
-        for p in low_stock_products:
+        for p in new_products:
             if p['difference'] < -10:
                 status, color = 'Crítico', '#d32f2f'
             elif p['difference'] < -5:
@@ -312,8 +339,16 @@ class NotificationManager:
                     <td style="padding:8px;text-align:center;color:{color}"><strong>{status}</strong></td>
                 </tr>"""
 
+        others_note = ''
+        if others > 0:
+            others_note = f'<p style="color:#666">Además hay <strong>{others}</strong> producto(s) más en bajo stock.</p>'
+
+        link_note = ''
+        if stock_url:
+            link_note = f'<p><a href="{stock_url}" style="color:#667eea">🔗 Ver todos los productos en bajo stock</a></p>'
+
         html = f"""<html><body>
-            <h2 style="color:#d32f2f">🚨 ALERTA DE STOCK BAJO</h2>
+            <h2 style="color:#d32f2f">🚨 Nuevo producto en stock bajo</h2>
             <p><strong>Fecha:</strong> {timestamp}</p>
             <table border="1" style="border-collapse:collapse;width:100%">
                 <thead style="background:#f5f5f5">
@@ -327,9 +362,8 @@ class NotificationManager:
                 </thead>
                 <tbody>{rows}</tbody>
             </table>
-            <p style="margin-top:20px;color:#d32f2f">
-                <strong>⚠️ Es necesario programar la fabricación de estos productos.</strong>
-            </p>
+            {others_note}
+            {link_note}
         </body></html>"""
 
         return text, html, telegram

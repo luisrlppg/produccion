@@ -184,52 +184,45 @@ def build_production_message(report_id, name, job_shift, date, workers,
                               machine_data, assembly_data, stringing_data,
                               gluing_data, delivery_data,
                               total_production, production_per_worker,
-                              additional_notes, timestamp) -> str:
+                              additional_notes, timestamp,
+                              report_url: str | None = None) -> str:
     lines = [
         '📋 REPORTE DE PRODUCCIÓN',
-        f'🆔 Reporte #{report_id}',
-        f'👤 {name}  |  🔄 {get_text(job_shift)}  |  📅 {date}',
-        f'👥 Trabajadores: {workers}',
-        '',
-        f'📊 Producción total: {total_production} uds',
-        f'📈 Por trabajador: {production_per_worker} uds/trabajador',
+        f'🆔 #{report_id}  |  👤 {name}  |  🔄 {get_text(job_shift)}  |  📅 {date}',
+        f'👥 {workers} trabajadores',
+        f'📊 Total: {total_production} uds  |  📈 {production_per_worker} uds/trabajador',
     ]
     if machine_data:
-        lines.append('\n🔧 Máquinas:')
-        for m in machine_data:
-            lines.append(f'  • Máq {m[0]}: {m[1]} uds — {get_text(m[2])} {get_text(m[3])}')
+        lines.append('🔧 ' + '  '.join(
+            f'M{m[0]}: {m[1]} ({get_text(m[2])})' for m in machine_data
+        ))
     if assembly_data:
-        lines.append('\n🔩 Ensamble:')
-        for p, q in assembly_data:
-            lines.append(f'  • {p}: {q}')
+        lines.append('🔩 Ensamble: ' + ', '.join(f'{p} ×{q}' for p, q in assembly_data))
     if stringing_data:
-        lines.append('\n🧵 Ensartado:')
-        for p, q in stringing_data:
-            lines.append(f'  • {p}: {q}')
+        lines.append('🧵 Ensartado: ' + ', '.join(f'{p} ×{q}' for p, q in stringing_data))
     if gluing_data:
-        lines.append('\n🔗 Pegado:')
-        for p, q in gluing_data:
-            lines.append(f'  • {p}: {q}')
+        lines.append('🔗 Pegado: ' + ', '.join(f'{p} ×{q}' for p, q in gluing_data))
     if delivery_data:
-        lines.append('\n🚚 Entregas:')
-        for customer, desc, *_ in delivery_data:
-            lines.append(f'  • {customer}: {desc}')
+        lines.append('🚚 Entregas: ' + ', '.join(f'{c}' for c, *_ in delivery_data))
     if additional_notes:
-        lines.append(f'\n📝 Notas: {additional_notes}')
-    lines.append(f'\n🕐 {timestamp}')
+        lines.append(f'📝 {additional_notes}')
+    if report_url:
+        lines.append(f'\n🔗 Ver reporte: {report_url}')
     return '\n'.join(lines)
 
 
 def build_simple_message(report_id, report_type: str, item_name: str,
-                          failure_description: str, timestamp: str) -> str:
+                          failure_description: str, timestamp: str,
+                          report_url: str | None = None) -> str:
     tipo = {'personal': 'Personal', 'company': 'Empresa'}.get(report_type, report_type.title())
-    return (
-        f'📋 REPORTE {tipo.upper()}\n'
-        f'🆔 Reporte #{report_id}\n'
-        f'📌 {item_name}\n'
-        f'📝 {failure_description}\n'
-        f'🕐 {timestamp}'
-    )
+    lines = [
+        f'📋 REPORTE {tipo.upper()}',
+        f'🆔 #{report_id}  |  📌 {item_name}',
+        f'📝 {failure_description}',
+    ]
+    if report_url:
+        lines.append(f'\n🔗 Ver reporte: {report_url}')
+    return '\n'.join(lines)
 
 
 def build_production_email_body(report_id, name, job_shift, date, workers,

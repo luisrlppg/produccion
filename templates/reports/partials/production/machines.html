@@ -2,15 +2,16 @@
     <h3>{{ get_text('mascara_brush_production') }}</h3>
 
     {% for i in [1, 2, 3] %}
-    <div class="form-group">
-        <label>{{ get_text('machine_' ~ i) }}</label>
-        <div class="dynamic-row" style="background: transparent; border: none; padding: 0; margin-bottom: 0;">
-            <div class="field-sm">
-                <label for="machine{{ i }}_quantity" style="font-weight: normal;">{{ get_text('quantity') }}</label>
-                <input type="text" inputmode="numeric" pattern="[0-9]*" id="machine{{ i }}_quantity" name="machine{{ i }}_quantity" placeholder="0">
+    <div class="machine-block">
+        <div class="machine-label">{{ get_text('machine_' ~ i) }}</div>
+        <div class="machine-fields">
+            <div class="machine-field-sm">
+                <label for="machine{{ i }}_quantity">{{ get_text('quantity') }}</label>
+                <input type="text" inputmode="numeric" pattern="[0-9]*"
+                       id="machine{{ i }}_quantity" name="machine{{ i }}_quantity" placeholder="0">
             </div>
-            <div class="field-md">
-                <label for="machine{{ i }}_brush_type" style="font-weight: normal;">{{ get_text('brush_type') }}</label>
+            <div class="machine-field-md">
+                <label for="machine{{ i }}_brush_type">{{ get_text('brush_type') }}</label>
                 <select id="machine{{ i }}_brush_type" name="machine{{ i }}_brush_type">
                     <option value="">Seleccionar</option>
                     <option value="straight">Recto</option>
@@ -22,8 +23,8 @@
                     <option value="balloon">Globo</option>
                 </select>
             </div>
-            <div class="field-md">
-                <label for="machine{{ i }}_color" style="font-weight: normal;">{{ get_text('color') }}</label>
+            <div class="machine-field-md">
+                <label for="machine{{ i }}_color">{{ get_text('color') }}</label>
                 <select id="machine{{ i }}_color" name="machine{{ i }}_color">
                     <option value="">Seleccionar</option>
                     <option value="black">Negro</option>
