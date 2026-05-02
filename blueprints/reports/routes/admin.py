@@ -17,6 +17,14 @@ admin_bp = Blueprint('panel', __name__)
 
 # ── Vistas ─────────────────────────────────────────────────────────────────────
 
+@admin_bp.route('/panel/production/view')
+@admin_bp.route('/panel/production/stats')
+@admin_bp.route('/panel/production')
+@admin_bp.route('/panel')
+def legacy_redirect():
+    return redirect(url_for('reportes'), 301)
+
+
 @admin_bp.route('/reportes/vista')
 @login_required
 def production_view():
