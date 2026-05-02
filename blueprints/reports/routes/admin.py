@@ -123,12 +123,25 @@ def production_stats():
                     product_totals[name][op]    += qty
                     product_totals[name]['total'] += qty
 
-    top_products = sorted(product_totals.items(), key=lambda x: x[1]['total'], reverse=True)[:10]
-    # Serializar para el template (evitar tuplas en tojson)
-    top_products_names  = [name for name, _ in top_products]
-    top_products_totals = [data['total'] for _, data in top_products]
+    # ── Mejor y peor día ──────────────────────────────────────────────────────
+    _best  = max(by_date.items(), key=lambda x: x[1]['total']) if by_date else None
+    _worst = min(
+        ((d, v) for d, v in by_date.items() if v['total'] > 0),
+        key=lambda x: x[1]['total'],
+        default=None,
+    )
+    # Convertir a dicts normales para evitar problemas con defaultdict en Jinja
+    best_day  = (_best[0],  dict(_best[1]))  if _best  else None
+    worst_day = (_worst[0], dict(_worst[1])) if _worst else None
 
-    # ── Máquinas: tipo de cepillo y color ─────────────────────────────────────
+    # Convertir top_products a lista de dicts normales
+    top_products = [
+        {'name': name, 'total': data['total'], 'ensamble': data['ensamble'],
+         'ensartado': data['ensartado'], 'pegado': data['pegado']}
+        for name, data in sorted(product_totals.items(), key=lambda x: x[1]['total'], reverse=True)[:10]
+    ]
+    top_products_names  = [p['name']  for p in top_products]
+    top_products_totals = [p['total'] for p in top_products]
     brush_type_totals = defaultdict(int)
     brush_color_totals = defaultdict(int)
     for r in csv_reports:
@@ -152,14 +165,6 @@ def production_stats():
     brush_types_values  = [v for _, v in brush_types]
     brush_colors_names  = [c for c, _ in brush_colors]
     brush_colors_values = [v for _, v in brush_colors]
-
-    # ── Mejor y peor día ──────────────────────────────────────────────────────
-    best_day  = max(by_date.items(), key=lambda x: x[1]['total']) if by_date else None
-    worst_day = min(
-        ((d, v) for d, v in by_date.items() if v['total'] > 0),
-        key=lambda x: x[1]['total'],
-        default=None,
-    )
 
     # ── Reportes recientes ────────────────────────────────────────────────────
     recent = sorted(csv_reports, key=lambda x: x.get('Fecha y Hora de Envio', ''), reverse=True)[:5]

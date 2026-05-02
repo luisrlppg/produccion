@@ -41,8 +41,8 @@
     {% if stats.best_day %}
     <div class="section-card highlight-green">
         <div style="font-size:.8rem; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:#276749; margin-bottom:6px;">🏆 Mejor día</div>
-        <div style="font-size:1.4rem; font-weight:700; color:#22543d;">{{ "{:,}".format(stats.best_day[1].total) }} uds</div>
-        <div style="color:#276749; font-size:.9rem;">{{ stats.best_day[0] }} · {{ stats.best_day[1].reports }} reporte(s)</div>
+        <div style="font-size:1.4rem; font-weight:700; color:#22543d;">{{ "{:,}".format(stats.best_day[1]['total']) }} uds</div>
+        <div style="color:#276749; font-size:.9rem;">{{ stats.best_day[0] }} · {{ stats.best_day[1]['reports'] }} reporte(s)</div>
     </div>
     {% endif %}
     {% if stats.worst_day %}
@@ -135,14 +135,14 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {% for name, data in stats.top_products %}
+                    {% for p in stats.top_products %}
                     <tr>
                         <td style="color:#a0aec0; font-size:.85rem;">{{ loop.index }}</td>
-                        <td style="font-weight:500;">{{ name }}</td>
-                        <td style="text-align:right; font-weight:700; color:#2b6cb0;">{{ "{:,}".format(data.total) }}</td>
-                        <td style="text-align:right; color:#276749;">{{ "{:,}".format(data.ensamble) if data.ensamble else '—' }}</td>
-                        <td style="text-align:right; color:#744210;">{{ "{:,}".format(data.ensartado) if data.ensartado else '—' }}</td>
-                        <td style="text-align:right; color:#702459;">{{ "{:,}".format(data.pegado) if data.pegado else '—' }}</td>
+                        <td style="font-weight:500;">{{ p.name }}</td>
+                        <td style="text-align:right; font-weight:700; color:#2b6cb0;">{{ "{:,}".format(p.total) }}</td>
+                        <td style="text-align:right; color:#276749;">{{ "{:,}".format(p.ensamble) if p.ensamble else '—' }}</td>
+                        <td style="text-align:right; color:#744210;">{{ "{:,}".format(p.ensartado) if p.ensartado else '—' }}</td>
+                        <td style="text-align:right; color:#702459;">{{ "{:,}".format(p.pegado) if p.pegado else '—' }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
