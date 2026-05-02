@@ -9,7 +9,7 @@ from notifications import NotificationManager
 from database import insert_production_report
 from utils import (get_text, _format_products, _format_deliveries,
                    save_production_details_json,
-                   build_production_message, build_production_email_body)
+                   build_production_email_body)
 
 production_bp = Blueprint('production', __name__)
 
@@ -143,16 +143,11 @@ def submit_report():
         base_url = os.getenv('APP_BASE_URL', '').rstrip('/')
         report_url = f'{base_url}/reportes/vista?date={date}' if base_url else None
 
-        whatsapp_msg = f'📋 Nuevo reporte de producción #{report_id} — {name} ({get_text(job_shift)})'
+        simple_msg = f'📋 Nuevo reporte de producción #{report_id} — {name} ({get_text(job_shift)})'
         if report_url:
-            whatsapp_msg += f'\n🔗 {report_url}'
+            simple_msg += f'\n🔗 {report_url}'
 
-        telegram_msg = build_production_message(
-            report_id, name, job_shift, date, quantity_persons,
-            machine_data, assembly_data, stringing_data, gluing_data, delivery_data,
-            total_production, total_machines, production_per_worker, additional_notes, timestamp,
-            report_url=report_url,
-        )
+        telegram_msg = simple_msg
         email_body = build_production_email_body(
             report_id, name, job_shift, date, quantity_persons,
             machine_data, assembly_data, stringing_data, gluing_data, delivery_data,
@@ -161,8 +156,8 @@ def submit_report():
         nm.broadcast(
             subject=f'Nuevo Reporte de Produccion #{report_id} - {name}',
             text=email_body,
-            telegram_text=telegram_msg,
-            whatsapp_text=whatsapp_msg,
+            telegram_text=simple_msg,
+            whatsapp_text=simple_msg,
             report_type='production',
         )
     except Exception as e:
