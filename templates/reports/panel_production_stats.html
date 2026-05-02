@@ -23,15 +23,19 @@
     </div>
     <div class="kpi-card kpi-green">
         <div class="kpi-value">{{ "{:,}".format(stats.total_production) }}</div>
-        <div class="kpi-label">Unidades producidas</div>
+        <div class="kpi-label">Producción personal</div>
+    </div>
+    <div class="kpi-card kpi-orange">
+        <div class="kpi-value">{{ "{:,}".format(stats.total_machines) }}</div>
+        <div class="kpi-label">Producción máquinas</div>
+    </div>
+    <div class="kpi-card kpi-teal">
+        <div class="kpi-value">{{ "{:,}".format(stats.total_combined) }}</div>
+        <div class="kpi-label">Producción total</div>
     </div>
     <div class="kpi-card kpi-purple">
         <div class="kpi-value">{{ stats.avg_efficiency }}</div>
         <div class="kpi-label">Promedio uds/trabajador</div>
-    </div>
-    <div class="kpi-card kpi-orange">
-        <div class="kpi-value">{{ stats.best_efficiency }}</div>
-        <div class="kpi-label">Mejor eficiencia registrada</div>
     </div>
 </div>
 
@@ -88,7 +92,9 @@
             <thead>
                 <tr>
                     <th>Turno</th>
-                    <th style="text-align:right;">Total uds</th>
+                    <th style="text-align:right;">Personal</th>
+                    <th style="text-align:right;">Máquinas</th>
+                    <th style="text-align:right;">Total</th>
                     <th style="text-align:right;">Reportes</th>
                     <th style="text-align:right;">Uds/trabajador</th>
                 </tr>
@@ -103,7 +109,9 @@
                         {% else %}🔄{% endif %}
                         {{ s.name }}
                     </td>
-                    <td style="text-align:right; font-weight:600;">{{ "{:,}".format(s.total) }}</td>
+                    <td style="text-align:right; color:#276749;">{{ "{:,}".format(s.total) }}</td>
+                    <td style="text-align:right; color:#c05621;">{{ "{:,}".format(s.machines) }}</td>
+                    <td style="text-align:right; font-weight:700;">{{ "{:,}".format(s.total + s.machines) }}</td>
                     <td style="text-align:right;">{{ s.reports }}</td>
                     <td style="text-align:right;">{{ s.avg_per_worker }}</td>
                 </tr>
@@ -211,19 +219,25 @@
                     <th>Nombre</th>
                     <th>Turno</th>
                     <th>Fecha</th>
-                    <th style="text-align:right;">Total uds</th>
+                    <th style="text-align:right;">Personal</th>
+                    <th style="text-align:right;">Máquinas</th>
+                    <th style="text-align:right;">Total</th>
                     <th style="text-align:right;">Uds/trabajador</th>
                     <th></th>
                 </tr>
             </thead>
             <tbody>
                 {% for r in stats.recent %}
+                {% set personal  = (r.get('Produccion Personal') or r.get('Produccion Total', 0)) | int %}
+                {% set maquinas  = r.get('Produccion Maquinas', 0) | int %}
                 <tr>
                     <td style="color:#a0aec0;">{{ r['ID Reporte'] }}</td>
                     <td>{{ r['Nombre'] }}</td>
                     <td>{{ r['Turno'] }}</td>
                     <td>{{ r['Fecha'] }}</td>
-                    <td style="text-align:right; font-weight:600;">{{ "{:,}".format(r['Produccion Total'] | int) }}</td>
+                    <td style="text-align:right; color:#276749;">{{ "{:,}".format(personal) }}</td>
+                    <td style="text-align:right; color:#c05621;">{{ "{:,}".format(maquinas) }}</td>
+                    <td style="text-align:right; font-weight:700;">{{ "{:,}".format(personal + maquinas) }}</td>
                     <td style="text-align:right;">{{ r['Produccion por Trabajador'] }}</td>
                     <td>
                         <a href="{{ url_for('panel.production_view') }}?date={{ r['Fecha'] }}"
@@ -243,7 +257,7 @@
 <style>
 .stats-kpi-grid {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(5, 1fr);
     gap: 16px;
     margin-bottom: 24px;
 }
@@ -259,6 +273,7 @@
 .kpi-green  { background:#f0fff4; color:#276749; }
 .kpi-purple { background:#faf5ff; color:#553c9a; }
 .kpi-orange { background:#fffaf0; color:#c05621; }
+.kpi-teal   { background:#e6fffa; color:#234e52; }
 
 .stats-row-2 {
     display: grid;
@@ -297,8 +312,7 @@
 }
 @media (max-width: 400px) {
     .stats-kpi-grid  { grid-template-columns: 1fr; }
-}
-</style>
+}</style>
 
 {# ── Scripts Chart.js ──────────────────────────────────────────────────────── #}
 {% if stats %}

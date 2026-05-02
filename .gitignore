@@ -4,7 +4,9 @@ __pycache__/
 *.pyo
 data/*.csv
 data/*.json
+data/*.db
 !data/.gitkeep
+!data/migrations/
 uploads/
 *.log
 .vscode/

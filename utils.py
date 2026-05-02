@@ -1,7 +1,6 @@
 """
 Utilidades compartidas — PPG Unified
 """
-import csv
 import json
 import os
 
@@ -85,7 +84,8 @@ PRODUCTION_CSV_HEADER = [
     'Maquina 2 Cantidad', 'Maquina 2 Tipo de Cepillo', 'Maquina 2 Color',
     'Maquina 3 Cantidad', 'Maquina 3 Tipo de Cepillo', 'Maquina 3 Color',
     'Ensamble', 'Ensartado', 'Pegado', 'Entregas',
-    'Produccion Total', 'Produccion por Trabajador',
+    'Produccion Personal', 'Produccion Maquinas', 'Produccion Total',
+    'Produccion por Trabajador',
     'Notas Adicionales', 'Fecha y Hora de Envio',
 ]
 
@@ -100,7 +100,7 @@ def allowed_file(filename: str) -> bool:
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
-# ── CSV / JSON helpers ─────────────────────────────────────────────────────────
+# ── JSON helper (production_details.json se mantiene) ─────────────────────────
 
 def _format_products(data):
     return ', '.join(f'{row[0]}: {row[1]}' for row in data) if data else ''
@@ -110,50 +110,18 @@ def _format_deliveries(data):
     return ', '.join(f'{row[0]} - {row[1]}' for row in data) if data else ''
 
 
-def get_next_report_id(report_type: str = 'production') -> int:
-    csv_file = f'data/{report_type}_reports.csv'
-    try:
-        with open(csv_file, encoding='utf-8') as f:
-            return len(list(csv.reader(f)))
-    except FileNotFoundError:
-        return 1
-
-
-def save_production_report(report_id, name, job_shift, date, workers, additional_notes,
-                            timestamp, machine_data, assembly_data, stringing_data,
-                            gluing_data, delivery_data, total_production, production_per_worker):
+def save_production_details_json(report_id, name, job_shift, date, workers,
+                                  timestamp, assembly_data, stringing_data, gluing_data):
+    """Guarda el detalle de productos en production_details.json (se mantiene en JSON)."""
     os.makedirs('data', exist_ok=True)
-    csv_file   = 'data/production_reports.csv'
-    file_exists = os.path.isfile(csv_file)
-    machines   = {str(m[0]): m for m in machine_data}
-
-    def machine_fields(num):
-        m = machines.get(str(num))
-        return [m[1], get_text(m[2]), get_text(m[3])] if m else ['', '', '']
-
-    row = [
-        report_id, name, get_text(job_shift), date, workers,
-        *machine_fields(1), *machine_fields(2), *machine_fields(3),
-        _format_products(assembly_data),
-        _format_products(stringing_data),
-        _format_products(gluing_data),
-        _format_deliveries(delivery_data),
-        total_production, production_per_worker,
-        additional_notes, timestamp,
-    ]
-
-    with open(csv_file, 'a', newline='', encoding='utf-8') as f:
-        writer = csv.writer(f)
-        if not file_exists:
-            writer.writerow(PRODUCTION_CSV_HEADER)
-        writer.writerow(row)
-
-    # JSON detallado
     json_file = 'data/production_details.json'
     detail = {
-        'id_reporte': report_id, 'nombre': name,
-        'turno': get_text(job_shift), 'fecha': date,
-        'trabajadores': workers, 'fecha_y_hora_de_envio': timestamp,
+        'id_reporte':          report_id,
+        'nombre':              name,
+        'turno':               get_text(job_shift),
+        'fecha':               date,
+        'trabajadores':        workers,
+        'fecha_y_hora_de_envio': timestamp,
         'ensamble':  [{'producto': p[0], 'cantidad': p[1]} for p in assembly_data],
         'ensartado': [{'producto': p[0], 'cantidad': p[1]} for p in stringing_data],
         'pegado':    [{'producto': p[0], 'cantidad': p[1]} for p in gluing_data],
@@ -168,16 +136,12 @@ def save_production_report(report_id, name, job_shift, date, workers, additional
         json.dump(records, f, ensure_ascii=False, indent=2)
 
 
-def save_report(data, report_type: str):
-    os.makedirs('data', exist_ok=True)
-    csv_file   = f'data/{report_type}_reports.csv'
-    file_exists = os.path.isfile(csv_file)
-    with open(csv_file, 'a', newline='', encoding='utf-8') as f:
-        writer = csv.writer(f)
-        if not file_exists:
-            writer.writerow(['Report_ID', 'Type', 'Item_Name', 'Location',
-                             'Failure_Description', 'Additional_Info', 'Photo_Path', 'Timestamp'])
-        writer.writerow(data)
+def read_production_details_json() -> list:
+    try:
+        with open('data/production_details.json', encoding='utf-8') as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return []
 
 
 # ── Constructores de mensajes de notificación ──────────────────────────────────
@@ -185,17 +149,19 @@ def save_report(data, report_type: str):
 def build_production_message(report_id, name, job_shift, date, workers,
                               machine_data, assembly_data, stringing_data,
                               gluing_data, delivery_data,
-                              total_production, production_per_worker,
+                              total_production, total_machines, production_per_worker,
                               additional_notes, timestamp,
                               report_url: str | None = None) -> str:
     lines = [
         '📋 REPORTE DE PRODUCCIÓN',
         f'🆔 #{report_id}  |  👤 {name}  |  🔄 {get_text(job_shift)}  |  📅 {date}',
         f'👥 {workers} trabajadores',
-        f'📊 Total: {total_production} uds  |  📈 {production_per_worker} uds/trabajador',
+        f'👷 Personal: {total_production} uds  |  📈 {production_per_worker} uds/trabajador',
     ]
+    if total_machines:
+        lines.append(f'🔧 Máquinas: {total_machines} uds')
     if machine_data:
-        lines.append('🔧 ' + '  '.join(
+        lines.append('   ' + '  '.join(
             f'M{m[0]}: {m[1]} ({get_text(m[2])})' for m in machine_data
         ))
     if assembly_data:
@@ -230,7 +196,7 @@ def build_simple_message(report_id, report_type: str, item_name: str,
 def build_production_email_body(report_id, name, job_shift, date, workers,
                                  machine_data, assembly_data, stringing_data,
                                  gluing_data, delivery_data,
-                                 total_production, production_per_worker,
+                                 total_production, total_machines, production_per_worker,
                                  additional_notes, timestamp) -> str:
     def section(title, rows):
         if not rows:
@@ -258,7 +224,8 @@ def build_production_email_body(report_id, name, job_shift, date, workers,
 • Fecha y hora de envio: {timestamp}
 
 📊 RESUMEN DE PRODUCCION
-• Produccion Total: {total_production} unidades
+• Produccion Personal (ensamble/ensartado/pegado): {total_production} unidades
+• Produccion de Maquinas: {total_machines} unidades
 • Produccion por Trabajador: {production_per_worker} unidades/trabajador
 {section('PRODUCCION DE MAQUINAS', machines_rows)}
 {section('ENSAMBLE', [f'{p}: {q} unidades' for p, q in assembly_data])}

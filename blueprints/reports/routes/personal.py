@@ -5,7 +5,8 @@ from datetime import datetime
 
 from auth import login_required
 from notifications import NotificationManager
-from utils import get_text, get_next_report_id, save_report, build_simple_message
+from database import insert_simple_report
+from utils import get_text, allowed_file, build_simple_message
 
 personal_bp = Blueprint('personal', __name__)
 
@@ -26,9 +27,10 @@ def submit_report():
     location            = request.form.get('location', '')
     additional_info     = request.form.get('additional_info', '')
 
-    report_data = [report_id, 'personal', item_name, location,
-                   failure_description, additional_info, '', timestamp]
-    save_report(report_data, 'personal')
+    report_id = insert_simple_report(
+        'personal_reports', item_name, location,
+        failure_description, additional_info, '', timestamp,
+    )
 
     try:
         nm  = NotificationManager()

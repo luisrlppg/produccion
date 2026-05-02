@@ -6,7 +6,9 @@ import os
 
 from auth import login_required
 from notifications import NotificationManager
-from utils import (get_text, get_next_report_id, save_production_report,
+from database import insert_production_report
+from utils import (get_text, _format_products, _format_deliveries,
+                   save_production_details_json,
                    build_production_message, build_production_email_body)
 
 production_bp = Blueprint('production', __name__)
@@ -42,12 +44,11 @@ def submit_report():
         return redirect(url_for('report_form', report_type='production'))
 
     # ── Datos del formulario ───────────────────────────────────────────────────
-    report_id        = get_next_report_id('production')
     timestamp        = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     name             = request.form['name'].strip()
     job_shift        = request.form['job_shift'].strip()
     date             = request.form['date'].strip()
-    quantity_persons = request.form['quantity_persons'].strip()
+    quantity_persons = int(request.form['quantity_persons'].strip())
     additional_notes = request.form.get('additional_notes', '').strip()
 
     # Máquinas
@@ -93,37 +94,75 @@ def submit_report():
 
     total_production = _sum(assembly_data) + _sum(stringing_data) + _sum(gluing_data)
     try:
-        production_per_worker = round(total_production / int(quantity_persons), 2)
-    except (ValueError, ZeroDivisionError):
+        total_machines = sum(int(m[1]) for m in machine_data)
+    except (ValueError, IndexError):
+        total_machines = 0
+    try:
+        production_per_worker = round(total_production / quantity_persons, 2)
+    except ZeroDivisionError:
         production_per_worker = 0
 
-    # ── Guardar ────────────────────────────────────────────────────────────────
-    save_production_report(
-        report_id, name, job_shift, date, quantity_persons, additional_notes, timestamp,
-        machine_data, assembly_data, stringing_data, gluing_data, delivery_data,
-        total_production, production_per_worker,
+    # Máquinas como campos individuales
+    machines = {str(m[0]): m for m in machine_data}
+    def mf(num):
+        m = machines.get(str(num))
+        return (int(m[1]), get_text(m[2]), get_text(m[3])) if m else (0, '', '')
+
+    m1, m2, m3 = mf(1), mf(2), mf(3)
+
+    # ── Guardar en SQLite ──────────────────────────────────────────────────────
+    report_id = insert_production_report(
+        nombre=name,
+        turno=get_text(job_shift),
+        fecha=date,
+        trabajadores=quantity_persons,
+        maquina1_cantidad=m1[0], maquina1_tipo=m1[1], maquina1_color=m1[2],
+        maquina2_cantidad=m2[0], maquina2_tipo=m2[1], maquina2_color=m2[2],
+        maquina3_cantidad=m3[0], maquina3_tipo=m3[1], maquina3_color=m3[2],
+        ensamble=_format_products(assembly_data),
+        ensartado=_format_products(stringing_data),
+        pegado=_format_products(gluing_data),
+        entregas=_format_deliveries(delivery_data),
+        produccion_personal=total_production,
+        produccion_maquinas=total_machines,
+        produccion_total=total_production + total_machines,
+        produccion_por_trabajador=production_per_worker,
+        notas=additional_notes,
+        timestamp=timestamp,
+    )
+
+    # ── Guardar detalle en JSON (se mantiene) ──────────────────────────────────
+    save_production_details_json(
+        report_id, name, job_shift, date, quantity_persons,
+        timestamp, assembly_data, stringing_data, gluing_data,
     )
 
     # ── Notificaciones ─────────────────────────────────────────────────────────
     try:
-        nm  = NotificationManager()
+        nm       = NotificationManager()
         base_url = os.getenv('APP_BASE_URL', '').rstrip('/')
-        report_url = f'{base_url}/panel/production/view?date={date}' if base_url else None
-        msg = build_production_message(
+        report_url = f'{base_url}/reportes/vista?date={date}' if base_url else None
+
+        whatsapp_msg = f'📋 Nuevo reporte de producción #{report_id} — {name} ({get_text(job_shift)})'
+        if report_url:
+            whatsapp_msg += f'\n🔗 {report_url}'
+
+        telegram_msg = build_production_message(
             report_id, name, job_shift, date, quantity_persons,
             machine_data, assembly_data, stringing_data, gluing_data, delivery_data,
-            total_production, production_per_worker, additional_notes, timestamp,
+            total_production, total_machines, production_per_worker, additional_notes, timestamp,
             report_url=report_url,
         )
         email_body = build_production_email_body(
             report_id, name, job_shift, date, quantity_persons,
             machine_data, assembly_data, stringing_data, gluing_data, delivery_data,
-            total_production, production_per_worker, additional_notes, timestamp,
+            total_production, total_machines, production_per_worker, additional_notes, timestamp,
         )
         nm.broadcast(
             subject=f'Nuevo Reporte de Produccion #{report_id} - {name}',
             text=email_body,
-            telegram_text=msg,
+            telegram_text=telegram_msg,
+            whatsapp_text=whatsapp_msg,
             report_type='production',
         )
     except Exception as e:

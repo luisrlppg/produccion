@@ -246,6 +246,7 @@ class NotificationManager:
 
     def broadcast(self, subject: str, text: str, html: str | None = None,
                   telegram_text: str | None = None,
+                  whatsapp_text: str | None = None,
                   report_type: str | None = None) -> list[str]:
         """
         Envía por todos los canales configurados.
@@ -256,7 +257,7 @@ class NotificationManager:
             sent.append('Email')
         if self.send_telegram(telegram_text or text, report_type):
             sent.append('Telegram')
-        if self.send_whatsapp(text, report_type):
+        if self.send_whatsapp(whatsapp_text or text, report_type):
             sent.append('WhatsApp')
         return sent
 

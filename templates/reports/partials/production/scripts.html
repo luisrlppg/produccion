@@ -38,6 +38,37 @@ function validateRequiredFields() {
         }
     }
 
+    // Validar filas de productos: si hay nombre debe haber cantidad y viceversa
+    const SECTIONS = [
+        { prefix: 'assembly',  label: 'Ensamble' },
+        { prefix: 'stringing', label: 'Ensartado' },
+        { prefix: 'gluing',    label: 'Pegado' },
+    ];
+    SECTIONS.forEach(({ prefix, label }) => {
+        document.querySelectorAll('.' + prefix + '-row').forEach((row, i) => {
+            const nameEl = row.querySelector('.' + prefix + '-name');
+            const qtyEl  = row.querySelector('.' + prefix + '-qty');
+            if (!nameEl || !qtyEl) return;
+
+            const hasName = nameEl.value.trim() !== '';
+            const hasQty  = qtyEl.value.trim() !== '' && parseInt(qtyEl.value.trim()) > 0;
+
+            // Resetear bordes
+            nameEl.style.borderColor = '#cbd5e0';
+            qtyEl.style.borderColor  = '#cbd5e0';
+
+            if (hasName && !hasQty) {
+                qtyEl.style.borderColor = '#e53e3e';
+                errors.push(`${label} — fila ${i + 1}: falta la cantidad para "${nameEl.value.trim()}"`);
+                isValid = false;
+            } else if (!hasName && hasQty) {
+                nameEl.style.borderColor = '#e53e3e';
+                errors.push(`${label} — fila ${i + 1}: falta el nombre del producto`);
+                isValid = false;
+            }
+        });
+    });
+
     if (!isValid) alert('Por favor corrige los siguientes errores:\n\n' + errors.join('\n'));
     return isValid;
 }
@@ -53,7 +84,45 @@ document.addEventListener('DOMContentLoaded', function () {
             if (!this.value.trim()) this.style.borderColor = '#e53e3e';
         });
     });
+
+    // Bind validación en tiempo real a las filas iniciales
+    ['assembly', 'stringing', 'gluing'].forEach(prefix => {
+        document.querySelectorAll('.' + prefix + '-row').forEach(row => {
+            _bindRowValidation(row, prefix);
+        });
+    });
 });
+
+// Feedback visual en tiempo real para una fila de producto
+function _bindRowValidation(row, prefix) {
+    const nameEl = row.querySelector('.' + prefix + '-name');
+    const qtyEl  = row.querySelector('.' + prefix + '-qty');
+    if (!nameEl || !qtyEl) return;
+
+    function check() {
+        const hasName = nameEl.value.trim() !== '';
+        const hasQty  = qtyEl.value.trim() !== '' && parseInt(qtyEl.value.trim()) > 0;
+
+        if (!hasName && !hasQty) {
+            // Fila vacía — neutral
+            nameEl.style.borderColor = '#cbd5e0';
+            qtyEl.style.borderColor  = '#cbd5e0';
+        } else if (hasName && hasQty) {
+            // Completa — verde
+            nameEl.style.borderColor = '#48bb78';
+            qtyEl.style.borderColor  = '#48bb78';
+        } else {
+            // Incompleta — rojo en el campo que falta
+            nameEl.style.borderColor = hasName ? '#48bb78' : '#e53e3e';
+            qtyEl.style.borderColor  = hasQty  ? '#48bb78' : '#e53e3e';
+        }
+    }
+
+    nameEl.addEventListener('input', check);
+    nameEl.addEventListener('blur',  check);
+    qtyEl.addEventListener('input',  check);
+    qtyEl.addEventListener('blur',   check);
+}
 
 // ---------------------------------------------------------------------------
 // Generic product rows
@@ -69,11 +138,12 @@ function addRow(prefix) {
             <input type="text" class="${prefix}-name" placeholder="Nombre del producto">
         </div>
         <div class="prod-row-qty">
-            <label>Cantidad:</label>
+            <label>Cantidad: <span style="color:#e53e3e">*</span></label>
             <input type="text" inputmode="numeric" pattern="[0-9]*" class="${prefix}-qty" placeholder="0">
         </div>
         <button type="button" onclick="removeRow(this,'${prefix}')" class="btn-remove prod-row-remove" aria-label="Eliminar">×</button>`;
     container.appendChild(row);
+    _bindRowValidation(row, prefix);
 }
 
 function removeRow(btn, prefix) {

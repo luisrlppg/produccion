@@ -16,6 +16,7 @@ from auth import (check_reports_credentials, check_signage_credentials,
                   reports_login_required)
 from blueprints.signage import signage_bp
 from blueprints.reports import personal_bp, company_bp, production_bp, admin_bp
+from database import init_db
 from utils import get_text
 
 load_dotenv()
@@ -36,6 +37,7 @@ def create_app() -> Flask:
 
     os.makedirs('uploads', exist_ok=True)
     os.makedirs('data',    exist_ok=True)
+    init_db(app)
 
     app.jinja_env.filters['format_number'] = lambda v: '{:,}'.format(int(float(v)))
 
