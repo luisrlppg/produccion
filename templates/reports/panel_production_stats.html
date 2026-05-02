@@ -301,6 +301,7 @@
 </style>
 
 {# ── Scripts Chart.js ──────────────────────────────────────────────────────── #}
+{% if stats %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
 const PALETTE = ['#667eea','#48bb78','#ed8936','#fc8181','#4299e1','#9f7aea','#38b2ac','#f6ad55','#68d391','#b794f4'];
@@ -407,4 +408,5 @@ makeChart('chartBrushColor', 'doughnut',
 );
 {% endif %}
 </script>
+{% endif %}{# /if stats scripts #}
 {% endblock %}
