@@ -45,7 +45,7 @@
 {% endif %}
 
 <div style="margin-top: 20px;">
-    <a href="{{ url_for('panel.admin_dashboard') }}" class="btn" style="background: #6c757d;">Volver al Panel</a>
+    <a href="{{ url_for('reportes') }}" class="btn" style="background: #6c757d;">Volver</a>
     <a href="{{ url_for('panel.download_report_csv', report_type='company') }}" class="btn" style="background: #28a745; margin-left: 10px;">Descargar CSV</a>
 </div>
 {% endblock %}

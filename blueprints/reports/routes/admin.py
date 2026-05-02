@@ -14,205 +14,12 @@ admin_bp = Blueprint('panel', __name__)
 
 # ── Vistas ─────────────────────────────────────────────────────────────────────
 
-@admin_bp.route('/panel')
-@login_required
-def admin_dashboard():
-    return render_template('reports/panel_dashboard.html', get_text=get_text)
-
-
-@admin_bp.route('/panel/production')
-@login_required
-def admin_production():
-    return render_template('reports/panel_production.html', get_text=get_text)
-
-
-@admin_bp.route('/panel/production/stats')
-@login_required
-def production_stats():
-    csv_reports  = _read_csv('data/production_reports.csv')
-    json_reports = _read_json('data/production_details.json')
-
-    if not csv_reports:
-        return render_template('reports/panel_production_stats.html',
-                               stats=None, get_text=get_text)
-
-    # ── Helpers ────────────────────────────────────────────────────────────────
-    def _int(val, default=0):
-        try:
-            return int(val)
-        except (ValueError, TypeError):
-            return default
-
-    def _float(val, default=0.0):
-        try:
-            return float(val)
-        except (ValueError, TypeError):
-            return default
-
-    # ── Totales globales ───────────────────────────────────────────────────────
-    total_reports     = len(csv_reports)
-    total_production  = sum(_int(r.get('Produccion Total', 0)) for r in csv_reports)
-    total_workers_sum = sum(_int(r.get('Trabajadores', 0)) for r in csv_reports)
-    avg_workers       = round(total_workers_sum / total_reports, 1) if total_reports else 0
-
-    efficiencies = [_float(r.get('Produccion por Trabajador', 0)) for r in csv_reports
-                    if _float(r.get('Produccion por Trabajador', 0)) > 0]
-    avg_efficiency = round(sum(efficiencies) / len(efficiencies), 1) if efficiencies else 0
-    best_efficiency = max(efficiencies) if efficiencies else 0
-
-    # ── Producción por fecha (ordenada) ───────────────────────────────────────
-    by_date = defaultdict(lambda: {'total': 0, 'workers': 0, 'reports': 0})
-    for r in csv_reports:
-        d = r.get('Fecha', '')
-        if not d:
-            continue
-        by_date[d]['total']   += _int(r.get('Produccion Total', 0))
-        by_date[d]['workers'] += _int(r.get('Trabajadores', 0))
-        by_date[d]['reports'] += 1
-
-    dates_sorted = sorted(by_date.keys())
-    chart_dates        = dates_sorted[-30:]   # últimas 30 fechas
-    chart_production   = [by_date[d]['total']   for d in chart_dates]
-    chart_workers      = [by_date[d]['workers'] for d in chart_dates]
-    chart_efficiency   = [
-        round(by_date[d]['total'] / by_date[d]['workers'], 1)
-        if by_date[d]['workers'] else 0
-        for d in chart_dates
-    ]
-
-    # ── Por turno ─────────────────────────────────────────────────────────────
-    by_shift = defaultdict(lambda: {'total': 0, 'reports': 0, 'workers': 0})
-    for r in csv_reports:
-        shift = r.get('Turno', 'Desconocido')
-        by_shift[shift]['total']   += _int(r.get('Produccion Total', 0))
-        by_shift[shift]['reports'] += 1
-        by_shift[shift]['workers'] += _int(r.get('Trabajadores', 0))
-
-    shift_order = ['Matutino', 'Vespertino', 'Nocturno']
-    shifts_data = []
-    for s in shift_order:
-        if s in by_shift:
-            d = by_shift[s]
-            shifts_data.append({
-                'name':       s,
-                'total':      d['total'],
-                'reports':    d['reports'],
-                'avg_per_worker': round(d['total'] / d['workers'], 1) if d['workers'] else 0,
-            })
-    # Añadir turnos no estándar si los hay
-    for s, d in by_shift.items():
-        if s not in shift_order:
-            shifts_data.append({
-                'name':       s,
-                'total':      d['total'],
-                'reports':    d['reports'],
-                'avg_per_worker': round(d['total'] / d['workers'], 1) if d['workers'] else 0,
-            })
-    # Serializar shifts para el template
-    shifts_names  = [s['name']  for s in shifts_data]
-    shifts_totals = [s['total'] for s in shifts_data]
-
-    # ── Top productos (desde JSON) ─────────────────────────────────────────────
-    product_totals = defaultdict(lambda: {'ensamble': 0, 'ensartado': 0, 'pegado': 0, 'total': 0})
-    for jr in json_reports:
-        for op in ('ensamble', 'ensartado', 'pegado'):
-            for item in jr.get(op, []):
-                name = item.get('producto', '').strip()
-                qty  = _int(item.get('cantidad', 0))
-                if name and qty > 0:
-                    product_totals[name][op]    += qty
-                    product_totals[name]['total'] += qty
-
-    # ── Mejor y peor día ──────────────────────────────────────────────────────
-    _best  = max(by_date.items(), key=lambda x: x[1]['total']) if by_date else None
-    _worst = min(
-        ((d, v) for d, v in by_date.items() if v['total'] > 0),
-        key=lambda x: x[1]['total'],
-        default=None,
-    )
-    # Convertir a dicts normales para evitar problemas con defaultdict en Jinja
-    best_day  = (_best[0],  dict(_best[1]))  if _best  else None
-    worst_day = (_worst[0], dict(_worst[1])) if _worst else None
-
-    # Convertir top_products a lista de dicts normales
-    top_products = [
-        {'name': name, 'total': data['total'], 'ensamble': data['ensamble'],
-         'ensartado': data['ensartado'], 'pegado': data['pegado']}
-        for name, data in sorted(product_totals.items(), key=lambda x: x[1]['total'], reverse=True)[:10]
-    ]
-    top_products_names  = [p['name']  for p in top_products]
-    top_products_totals = [p['total'] for p in top_products]
-    brush_type_totals = defaultdict(int)
-    brush_color_totals = defaultdict(int)
-    for r in csv_reports:
-        for i in range(1, 4):
-            qty   = _int(r.get(f'Maquina {i} Cantidad', 0))
-            btype = r.get(f'Maquina {i} Tipo de Cepillo', '').strip()
-            color = r.get(f'Maquina {i} Color', '').strip()
-            # Compatibilidad con columna "Tipo de Brocha"
-            if not btype:
-                btype = r.get(f'Maquina {i} Tipo de Brocha', '').strip()
-            if qty > 0:
-                if btype:
-                    brush_type_totals[btype] += qty
-                if color:
-                    brush_color_totals[color] += qty
-
-    brush_types  = sorted(brush_type_totals.items(),  key=lambda x: x[1], reverse=True)
-    brush_colors = sorted(brush_color_totals.items(), key=lambda x: x[1], reverse=True)
-    # Serializar para el template
-    brush_types_names   = [t for t, _ in brush_types]
-    brush_types_values  = [v for _, v in brush_types]
-    brush_colors_names  = [c for c, _ in brush_colors]
-    brush_colors_values = [v for _, v in brush_colors]
-
-    # ── Reportes recientes ────────────────────────────────────────────────────
-    recent = sorted(csv_reports, key=lambda x: x.get('Fecha y Hora de Envio', ''), reverse=True)[:5]
-
-    stats = {
-        # Globales
-        'total_reports':    total_reports,
-        'total_production': total_production,
-        'avg_workers':      avg_workers,
-        'avg_efficiency':   avg_efficiency,
-        'best_efficiency':  best_efficiency,
-        # Gráficas
-        'chart_dates':      chart_dates,
-        'chart_production': chart_production,
-        'chart_workers':    chart_workers,
-        'chart_efficiency': chart_efficiency,
-        # Turnos
-        'shifts_data':      shifts_data,
-        'shifts_names':     shifts_names,
-        'shifts_totals':    shifts_totals,
-        # Productos
-        'top_products':          top_products,
-        'top_products_names':    top_products_names,
-        'top_products_totals':   top_products_totals,
-        # Máquinas
-        'brush_types':        brush_types,
-        'brush_types_names':  brush_types_names,
-        'brush_types_values': brush_types_values,
-        'brush_colors':        brush_colors,
-        'brush_colors_names':  brush_colors_names,
-        'brush_colors_values': brush_colors_values,
-        # Días destacados
-        'best_day':         best_day,
-        'worst_day':        worst_day,
-        # Recientes
-        'recent':           recent,
-    }
-
-    return render_template('reports/panel_production_stats.html',
-                           stats=stats, get_text=get_text)
-
-
-@admin_bp.route('/panel/production/view')
+@admin_bp.route('/reportes/vista')
 @login_required
 def production_view():
-    selected_date  = request.args.get('date', '')
-    csv_reports    = _read_csv('data/production_reports.csv')
-    json_reports   = _read_json('data/production_details.json')
+    selected_date   = request.args.get('date', '')
+    csv_reports     = _read_csv('data/production_reports.csv')
+    json_reports    = _read_json('data/production_details.json')
     available_dates = sorted(
         {r.get('Fecha', '') for r in csv_reports if r.get('Fecha')},
         reverse=True,
@@ -233,31 +40,166 @@ def production_view():
         available_dates=available_dates, get_text=get_text)
 
 
-@admin_bp.route('/panel/personal')
+@admin_bp.route('/reportes/stats')
 @login_required
-def admin_personal():
-    reports = sorted(_read_csv('data/personal_reports.csv'),
-                     key=lambda x: int(x.get('Report_ID', 0)), reverse=True)
-    return render_template('reports/admin_personal.html', reports=reports, get_text=get_text)
+def production_stats():
+    csv_reports  = _read_csv('data/production_reports.csv')
+    json_reports = _read_json('data/production_details.json')
+
+    if not csv_reports:
+        return render_template('reports/panel_production_stats.html',
+                               stats=None, get_text=get_text)
+
+    def _int(val, default=0):
+        try:
+            return int(val)
+        except (ValueError, TypeError):
+            return default
+
+    def _float(val, default=0.0):
+        try:
+            return float(val)
+        except (ValueError, TypeError):
+            return default
+
+    total_reports     = len(csv_reports)
+    total_production  = sum(_int(r.get('Produccion Total', 0)) for r in csv_reports)
+    total_workers_sum = sum(_int(r.get('Trabajadores', 0)) for r in csv_reports)
+    avg_workers       = round(total_workers_sum / total_reports, 1) if total_reports else 0
+
+    efficiencies = [_float(r.get('Produccion por Trabajador', 0)) for r in csv_reports
+                    if _float(r.get('Produccion por Trabajador', 0)) > 0]
+    avg_efficiency  = round(sum(efficiencies) / len(efficiencies), 1) if efficiencies else 0
+    best_efficiency = max(efficiencies) if efficiencies else 0
+
+    by_date = defaultdict(lambda: {'total': 0, 'workers': 0, 'reports': 0})
+    for r in csv_reports:
+        d = r.get('Fecha', '')
+        if not d:
+            continue
+        by_date[d]['total']   += _int(r.get('Produccion Total', 0))
+        by_date[d]['workers'] += _int(r.get('Trabajadores', 0))
+        by_date[d]['reports'] += 1
+
+    dates_sorted     = sorted(by_date.keys())
+    chart_dates      = dates_sorted[-30:]
+    chart_production = [by_date[d]['total']   for d in chart_dates]
+    chart_workers    = [by_date[d]['workers'] for d in chart_dates]
+    chart_efficiency = [
+        round(by_date[d]['total'] / by_date[d]['workers'], 1)
+        if by_date[d]['workers'] else 0
+        for d in chart_dates
+    ]
+
+    by_shift = defaultdict(lambda: {'total': 0, 'reports': 0, 'workers': 0})
+    for r in csv_reports:
+        shift = r.get('Turno', 'Desconocido')
+        by_shift[shift]['total']   += _int(r.get('Produccion Total', 0))
+        by_shift[shift]['reports'] += 1
+        by_shift[shift]['workers'] += _int(r.get('Trabajadores', 0))
+
+    shift_order = ['Matutino', 'Vespertino', 'Nocturno']
+    shifts_data = []
+    for s in shift_order:
+        if s in by_shift:
+            d = by_shift[s]
+            shifts_data.append({
+                'name':           s,
+                'total':          d['total'],
+                'reports':        d['reports'],
+                'avg_per_worker': round(d['total'] / d['workers'], 1) if d['workers'] else 0,
+            })
+    for s, d in by_shift.items():
+        if s not in shift_order:
+            shifts_data.append({
+                'name':           s,
+                'total':          d['total'],
+                'reports':        d['reports'],
+                'avg_per_worker': round(d['total'] / d['workers'], 1) if d['workers'] else 0,
+            })
+
+    shifts_names  = [s['name']  for s in shifts_data]
+    shifts_totals = [s['total'] for s in shifts_data]
+
+    product_totals = defaultdict(lambda: {'ensamble': 0, 'ensartado': 0, 'pegado': 0, 'total': 0})
+    for jr in json_reports:
+        for op in ('ensamble', 'ensartado', 'pegado'):
+            for item in jr.get(op, []):
+                name = item.get('producto', '').strip()
+                qty  = _int(item.get('cantidad', 0))
+                if name and qty > 0:
+                    product_totals[name][op]    += qty
+                    product_totals[name]['total'] += qty
+
+    _best  = max(by_date.items(), key=lambda x: x[1]['total']) if by_date else None
+    _worst = min(
+        ((d, v) for d, v in by_date.items() if v['total'] > 0),
+        key=lambda x: x[1]['total'],
+        default=None,
+    )
+    best_day  = (_best[0],  dict(_best[1]))  if _best  else None
+    worst_day = (_worst[0], dict(_worst[1])) if _worst else None
+
+    top_products = [
+        {'name': name, 'total': data['total'], 'ensamble': data['ensamble'],
+         'ensartado': data['ensartado'], 'pegado': data['pegado']}
+        for name, data in sorted(product_totals.items(), key=lambda x: x[1]['total'], reverse=True)[:10]
+    ]
+    top_products_names  = [p['name']  for p in top_products]
+    top_products_totals = [p['total'] for p in top_products]
+
+    brush_type_totals  = defaultdict(int)
+    brush_color_totals = defaultdict(int)
+    for r in csv_reports:
+        for i in range(1, 4):
+            qty   = _int(r.get(f'Maquina {i} Cantidad', 0))
+            btype = r.get(f'Maquina {i} Tipo de Cepillo', '').strip()
+            color = r.get(f'Maquina {i} Color', '').strip()
+            if not btype:
+                btype = r.get(f'Maquina {i} Tipo de Brocha', '').strip()
+            if qty > 0:
+                if btype:
+                    brush_type_totals[btype] += qty
+                if color:
+                    brush_color_totals[color] += qty
+
+    brush_types  = sorted(brush_type_totals.items(),  key=lambda x: x[1], reverse=True)
+    brush_colors = sorted(brush_color_totals.items(), key=lambda x: x[1], reverse=True)
+
+    recent = sorted(csv_reports, key=lambda x: x.get('Fecha y Hora de Envio', ''), reverse=True)[:5]
+
+    stats = {
+        'total_reports':       total_reports,
+        'total_production':    total_production,
+        'avg_workers':         avg_workers,
+        'avg_efficiency':      avg_efficiency,
+        'best_efficiency':     best_efficiency,
+        'chart_dates':         chart_dates,
+        'chart_production':    chart_production,
+        'chart_workers':       chart_workers,
+        'chart_efficiency':    chart_efficiency,
+        'shifts_data':         shifts_data,
+        'shifts_names':        shifts_names,
+        'shifts_totals':       shifts_totals,
+        'top_products':        top_products,
+        'top_products_names':  top_products_names,
+        'top_products_totals': top_products_totals,
+        'brush_types':         brush_types,
+        'brush_types_names':   [t for t, _ in brush_types],
+        'brush_types_values':  [v for _, v in brush_types],
+        'brush_colors':        brush_colors,
+        'brush_colors_names':  [c for c, _ in brush_colors],
+        'brush_colors_values': [v for _, v in brush_colors],
+        'best_day':            best_day,
+        'worst_day':           worst_day,
+        'recent':              recent,
+    }
+
+    return render_template('reports/panel_production_stats.html',
+                           stats=stats, get_text=get_text)
 
 
-@admin_bp.route('/panel/company')
-@login_required
-def admin_company():
-    reports = sorted(_read_csv('data/company_reports.csv'),
-                     key=lambda x: int(x.get('Report_ID', 0)), reverse=True)
-    return render_template('reports/admin_company.html', reports=reports, get_text=get_text)
-
-
-@admin_bp.route('/panel/reports')
-@login_required
-def admin_reports():
-    reports = sorted(_read_csv('data/reports.csv'),
-                     key=lambda x: int(x.get('Report_ID', 0)), reverse=True)
-    return render_template('reports/admin_reports.html', reports=reports, get_text=get_text)
-
-
-# ── Archivos ───────────────────────────────────────────────────────────────────
+# ── Descargas ──────────────────────────────────────────────────────────────────
 
 @admin_bp.route('/uploads/<filename>')
 @login_required
@@ -265,27 +207,18 @@ def uploaded_file(filename):
     return send_from_directory(current_app.config['UPLOAD_FOLDER'], filename)
 
 
-@admin_bp.route('/panel/download')
-@login_required
-def download_csv():
-    path = 'data/reports.csv'
-    if os.path.exists(path):
-        return send_file(path, as_attachment=True, download_name='reports.csv')
-    flash('No hay reportes disponibles', 'error')
-    return redirect(url_for('panel.admin_dashboard'))
-
-
-@admin_bp.route('/panel/download/<report_type>')
+@admin_bp.route('/reportes/download/<report_type>')
 @login_required
 def download_report_csv(report_type):
     if report_type not in ('production', 'personal', 'company'):
-        flash('Tipo de reporte invalido', 'error')
-        return redirect(url_for('panel.admin_dashboard'))
+        flash('Tipo de reporte inválido', 'error')
+        return redirect(url_for('reportes'))
     path = f'data/{report_type}_reports.csv'
     if os.path.exists(path):
-        return send_file(path, as_attachment=True, download_name=f'{report_type}_reports.csv')
-    flash(f'No hay reportes de {report_type} disponibles', 'error')
-    return redirect(url_for('panel.admin_dashboard'))
+        return send_file(path, as_attachment=True,
+                         download_name=f'{report_type}_reports.csv')
+    flash('No hay reportes disponibles para descargar', 'error')
+    return redirect(url_for('reportes'))
 
 
 # ── Helpers privados ───────────────────────────────────────────────────────────
