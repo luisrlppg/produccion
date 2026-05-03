@@ -38,9 +38,9 @@
                             <i class="fas fa-clock"></i> <span id="currentTime"></span>
                         </span>
                     </li>
-                    {% if session.get('signage_logged_in') %}
+                    {% if session.get('logged_in') %}
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('logout_signage') }}">
+                        <a class="nav-link" href="{{ url_for('logout') }}">
                             <i class="fas fa-sign-out-alt"></i> Salir
                         </a>
                     </li>

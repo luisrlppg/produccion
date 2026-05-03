@@ -1,24 +1,23 @@
 """
 PPG Unified — aplicación Flask unificada.
 
-Autenticación por sección:
-  /reportes  → REPORTS_USERNAME / REPORTS_PASSWORD
-  /signage/  → SIGNAGE_USERNAME / SIGNAGE_PASSWORD
-  /          → público
+Autenticación única para toda la app:
+  APP_USERNAME / APP_PASSWORD  en .env
 """
 import os
 import secrets
 
 from dotenv import load_dotenv
-from flask import Flask, flash, redirect, render_template, request, session, url_for
+from flask import Flask, redirect, render_template, request, session, url_for
 
-from auth import (check_reports_credentials, check_signage_credentials,
-                  reports_login_required)
+from auth import check_credentials, login_required
 from blueprints.signage import signage_bp
 from blueprints.reports import personal_bp, company_bp, production_bp, admin_bp
 from blueprints.labels import labels_bp
 from database import init_db
 from utils import get_text
+
+load_dotenv()
 
 
 def _start_stock_scheduler():
@@ -30,19 +29,17 @@ def _start_stock_scheduler():
         monitor   = StockMonitor()
         scheduler = BackgroundScheduler(daemon=True)
         scheduler.add_job(
-            func     = lambda: monitor.check_and_notify(force=False),
-            trigger  = 'interval',
-            hours    = 8,
-            id       = 'stock_check',
-            name     = 'Verificación de stock bajo',
+            func             = lambda: monitor.check_and_notify(force=False),
+            trigger          = 'interval',
+            hours            = 8,
+            id               = 'stock_check',
+            name             = 'Verificación de stock bajo',
             replace_existing = True,
         )
         scheduler.start()
         print('[Scheduler] Verificación de stock cada 8 horas iniciada.')
     except Exception as e:
         print(f'[Scheduler] Error al iniciar: {e}')
-
-load_dotenv()
 
 
 def create_app() -> Flask:
@@ -64,63 +61,55 @@ def create_app() -> Flask:
 
     app.jinja_env.filters['format_number'] = lambda v: '{:,}'.format(int(float(v)))
 
-    # ── Página principal — pública ─────────────────────────────────────────────
+    # ── Login / logout ─────────────────────────────────────────────────────────
+
+    @app.route('/login', methods=['GET', 'POST'])
+    def login():
+        if session.get('logged_in'):
+            return redirect(url_for('index'))
+        error = None
+        if request.method == 'POST':
+            if check_credentials(
+                request.form.get('username', ''),
+                request.form.get('password', ''),
+            ):
+                session['logged_in'] = True
+                return redirect(request.args.get('next') or url_for('index'))
+            error = 'Usuario o contraseña incorrectos'
+        return render_template('login.html', error=error,
+                               section='PPG', get_text=get_text)
+
+    @app.route('/logout')
+    def logout():
+        session.clear()
+        return redirect(url_for('login'))
+
+    # Rutas legacy de login para compatibilidad con links guardados
+    @app.route('/login/reportes')
+    @app.route('/login/fabricacion')
+    def login_legacy():
+        return redirect(url_for('login', **request.args))
+
+    @app.route('/logout/reportes')
+    @app.route('/logout/fabricacion')
+    def logout_legacy():
+        session.clear()
+        return redirect(url_for('login'))
+
+    # ── Rutas principales ──────────────────────────────────────────────────────
 
     @app.route('/')
+    @login_required
     def index():
         return render_template('index.html', get_text=get_text)
 
-    # ── Login / logout de Reportes ─────────────────────────────────────────────
-
-    @app.route('/login/reportes', methods=['GET', 'POST'])
-    def login_reports():
-        error = None
-        if request.method == 'POST':
-            if check_reports_credentials(
-                request.form.get('username', ''),
-                request.form.get('password', ''),
-            ):
-                session['reports_logged_in'] = True
-                return redirect(request.args.get('next') or url_for('reportes'))
-            error = 'Usuario o contraseña incorrectos'
-        return render_template('login.html', error=error,
-                               section='Reportes', get_text=get_text)
-
-    @app.route('/logout/reportes')
-    def logout_reports():
-        session.pop('reports_logged_in', None)
-        return redirect(url_for('index'))
-
-    # ── Login / logout de Fabricación ──────────────────────────────────────────
-
-    @app.route('/login/fabricacion', methods=['GET', 'POST'])
-    def login_signage():
-        error = None
-        if request.method == 'POST':
-            if check_signage_credentials(
-                request.form.get('username', ''),
-                request.form.get('password', ''),
-            ):
-                session['signage_logged_in'] = True
-                return redirect(request.args.get('next') or url_for('signage.index'))
-            error = 'Usuario o contraseña incorrectos'
-        return render_template('login.html', error=error,
-                               section='Fabricación y Stock', get_text=get_text)
-
-    @app.route('/logout/fabricacion')
-    def logout_signage():
-        session.pop('signage_logged_in', None)
-        return redirect(url_for('index'))
-
-    # ── Rutas de Reportes ──────────────────────────────────────────────────────
-
     @app.route('/reportes')
-    @reports_login_required
+    @login_required
     def reportes():
         return render_template('reportes.html', get_text=get_text)
 
     @app.route('/report/<report_type>')
-    @reports_login_required
+    @login_required
     def report_form(report_type):
         if report_type not in ('personal', 'company', 'production'):
             return redirect(url_for('reportes'))
@@ -128,7 +117,7 @@ def create_app() -> Flask:
                                report_type=report_type, get_text=get_text)
 
     @app.route('/submit_report', methods=['POST'])
-    @reports_login_required
+    @login_required
     def submit_report():
         report_type = request.form.get('report_type')
         if report_type == 'production':

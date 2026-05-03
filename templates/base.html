@@ -300,8 +300,8 @@
                     </nav>
                     {% endif %}
                 </div>
-                {% if session.get('reports_logged_in') or session.get('signage_logged_in') %}
-                <a href="{{ url_for('logout_reports') if session.get('reports_logged_in') else url_for('logout_signage') }}"
+                {% if session.get('logged_in') %}
+                <a href="{{ url_for('logout') }}"
                    class="btn btn-secondary"
                    style="padding:6px 12px; font-size:0.85rem;"
                    onclick="return confirm('¿Cerrar sesión?')">🚪 Salir</a>
