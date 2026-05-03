@@ -186,6 +186,9 @@ def get_sales_orders(models, uid):
             'lines':           lines,
         })
     return result
+
+
+def get_low_stock_products(models, uid):
     rules = get_reordering_rules(models, uid)
     if not rules:
         return []
@@ -197,14 +200,12 @@ def get_sales_orders(models, uid):
 
     products = get_products_stock(models, uid, list(reorder_map.keys()))
 
-    # ── Batch: recolectar todos los IDs de atributos de variante de una vez ───
-    # En lugar de hacer 1 llamada XML-RPC por producto, juntamos todos los IDs
-    # y hacemos UNA sola llamada para obtener todos los valores de atributo.
+    # Batch: recolectar todos los IDs de atributos de variante de una vez
     all_attr_ids = []
     for p in products:
         all_attr_ids.extend(p.get('product_template_attribute_value_ids') or [])
 
-    attr_name_map = {}  # id → nombre del valor de atributo
+    attr_name_map = {}
     if all_attr_ids:
         records = models.execute_kw(
             ODOO_DB, uid, ODOO_PASSWORD,
@@ -214,19 +215,16 @@ def get_sales_orders(models, uid):
         )
         attr_name_map = {r['id']: r['name'] for r in records}
 
-    # ── Filtrar y construir resultado ─────────────────────────────────────────
     low = []
     for p in products:
         pid     = p['id']
         min_qty = min(reorder_map[pid])
         current = p['qty_available']
         if current < min_qty:
-            attr_ids = p.get('product_template_attribute_value_ids') or []
-            variant  = ' / '.join(attr_name_map[i] for i in attr_ids if i in attr_name_map)
-
-            tmpl = p.get('product_tmpl_id')
+            attr_ids  = p.get('product_template_attribute_value_ids') or []
+            variant   = ' / '.join(attr_name_map[i] for i in attr_ids if i in attr_name_map)
+            tmpl      = p.get('product_tmpl_id')
             base_name = tmpl[1] if isinstance(tmpl, (list, tuple)) and len(tmpl) > 1 else p['name']
-
             low.append({
                 'id':                 pid,
                 'name':               base_name,
