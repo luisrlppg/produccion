@@ -29,6 +29,13 @@ odoo = OdooClient(
     password = os.getenv('ODOO_PASSWORD', 'odooppg'),
 )
 
+# Pre-autenticar al cargar el módulo para evitar timeout en la primera request
+try:
+    _ = odoo._uid
+    logger.info('[Labels] Conexión Odoo establecida')
+except Exception as e:
+    logger.warning(f'[Labels] No se pudo pre-autenticar con Odoo: {e}')
+
 # ── Dimensiones etiqueta ───────────────────────────────────────────────────────
 ANCHO_PT = 200 * mm
 ALTO_PT  = 102.1 * mm
@@ -237,8 +244,9 @@ def label():
 @reports_login_required
 def search_clientes():
     q = request.args.get('q', '').strip()
-    if len(q) < 2:
-        return jsonify([])
+    # Sin query → devuelve todos (hasta 200) para la lista inicial
+    if not q:
+        return jsonify(odoo.search_partners('', limit=200))
     return jsonify(odoo.search_partners(q))
 
 
@@ -246,6 +254,6 @@ def search_clientes():
 @reports_login_required
 def search_productos():
     q = request.args.get('q', '').strip()
-    if len(q) < 2:
-        return jsonify([])
+    if not q:
+        return jsonify(odoo.search_products('', limit=200))
     return jsonify(odoo.search_products(q))

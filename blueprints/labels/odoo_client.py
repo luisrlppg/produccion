@@ -25,10 +25,19 @@ Uso básico:
 """
 
 import logging
+import socket
 import xmlrpc.client
 from functools import cached_property
 
 logger = logging.getLogger(__name__)
+
+# Timeout en segundos para conexiones XML-RPC a Odoo
+_TIMEOUT = 30
+
+
+def _proxy(url: str):
+    """Crea un ServerProxy con timeout explícito vía socket."""
+    return xmlrpc.client.ServerProxy(url, use_datetime=False)
 
 
 class OdooClient:
@@ -49,7 +58,8 @@ class OdooClient:
     @cached_property
     def _uid(self) -> int:
         """Autentica y devuelve el uid. Se ejecuta solo la primera vez."""
-        common = xmlrpc.client.ServerProxy(f'{self.url}/xmlrpc/2/common')
+        socket.setdefaulttimeout(_TIMEOUT)
+        common = _proxy(f'{self.url}/xmlrpc/2/common')
         uid = common.authenticate(self.db, self.username, self.password, {})
         if not uid:
             raise ConnectionError(
@@ -61,7 +71,7 @@ class OdooClient:
     @cached_property
     def _models(self):
         """Proxy al endpoint de modelos. Se crea solo la primera vez."""
-        return xmlrpc.client.ServerProxy(f'{self.url}/xmlrpc/2/object')
+        return _proxy(f'{self.url}/xmlrpc/2/object')
 
     def _execute(self, model: str, method: str, *args, **kwargs):
         """Atajo para execute_kw."""
@@ -77,14 +87,17 @@ class OdooClient:
     def search_partners(self, query: str, limit: int = 20) -> list[dict]:
         """
         Busca socios/clientes cuyo nombre contenga `query`.
+        Si query está vacío devuelve todos hasta `limit`.
         Devuelve lista de {'id': int, 'name': str}.
         """
         try:
+            domain = [['name', 'ilike', query]] if query else []
             return self._execute(
                 'res.partner', 'search_read',
-                [['name', 'ilike', query]],
+                domain,
                 fields=['id', 'name'],
                 limit=limit,
+                order='name asc',
             )
         except Exception:
             logger.exception(f'Error buscando partners con query="{query}"')
@@ -111,15 +124,25 @@ class OdooClient:
     def search_products(self, query: str, limit: int = 20) -> list[dict]:
         """
         Busca productos cuyo nombre contenga `query`.
+        Si query está vacío devuelve todos hasta `limit`.
         Devuelve lista de {'id': int, 'display_name': str}.
         """
         try:
-            results = self._execute(
-                'product.product', 'name_search',
-                query,
-                limit=limit,
-            )
-            return [{'id': pid, 'display_name': name} for pid, name in results]
+            if query:
+                results = self._execute(
+                    'product.product', 'name_search',
+                    query,
+                    limit=limit,
+                )
+                return [{'id': pid, 'display_name': name} for pid, name in results]
+            else:
+                return self._execute(
+                    'product.product', 'search_read',
+                    [],
+                    fields=['id', 'display_name'],
+                    limit=limit,
+                    order='display_name asc',
+                )
         except Exception:
             logger.exception(f'Error buscando productos con query="{query}"')
             return []

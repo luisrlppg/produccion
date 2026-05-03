@@ -21,22 +21,22 @@
       </div>
       <div class="input-grid">
         <div class="input-group">
-          <label for="header_text">Título principal:</label>
+          <label>Título principal:</label>
           <input type="text" id="header_text" name="header_text"
                  placeholder="Plásticos Plasa de Guadalajara S.A. de C.V." disabled>
         </div>
         <div class="input-group">
-          <label for="empresa_direccion">Dirección:</label>
+          <label>Dirección:</label>
           <input type="text" id="empresa_direccion" name="empresa_direccion"
                  placeholder="Calle Florentino Acosta #1090" disabled>
         </div>
         <div class="input-group">
-          <label for="empresa_ciudad">Ciudad y CP:</label>
+          <label>Ciudad y CP:</label>
           <input type="text" id="empresa_ciudad" name="empresa_ciudad"
                  placeholder="Guadalajara, Jalisco   C.P.44329" disabled>
         </div>
         <div class="input-group">
-          <label for="empresa_contacto">Contacto:</label>
+          <label>Contacto:</label>
           <input type="text" id="empresa_contacto" name="empresa_contacto"
                  placeholder="Teléfono: 33-3651-5424    www.plasticosplasa.com" disabled>
         </div>
@@ -45,18 +45,30 @@
 
     <div class="form-sections">
 
-      <!-- Cliente -->
+      <!-- ── Cliente ─────────────────────────────────────────────────────── -->
       <div class="form-card">
-        <div class="card-header"><h3>👤 Cliente</h3></div>
-        <div class="search-container">
-          <input type="text" id="cliente_search" placeholder="Buscar cliente..."
-                 autocomplete="off" class="search-input" required>
-          <select name="cliente" id="cliente" required style="display:none;">
-            <option value="">-- Seleccionar Cliente --</option>
-          </select>
-          <div id="cliente_results" class="search-results"></div>
-          <div id="cliente_selected" class="selected-item" style="display:none;"></div>
+        <div class="card-header" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+          <h3>👤 Cliente</h3>
+          <button type="button" class="load-btn" id="loadClientesBtn"
+                  onclick="loadList('clientes')">
+            <i class="fas fa-download"></i> Cargar clientes
+          </button>
         </div>
+
+        <!-- Seleccionado -->
+        <div id="cliente_selected" class="selected-item" style="display:none; margin-bottom:10px;"></div>
+        <input type="hidden" name="cliente" id="cliente" required>
+
+        <!-- Buscador + lista (ocultos hasta cargar) -->
+        <div id="clientes_panel" style="display:none;">
+          <input type="text" id="cliente_search" class="search-input"
+                 placeholder="Filtrar clientes…" oninput="filterList('clientes')">
+          <div id="clientes_list" class="scroll-list"></div>
+        </div>
+        <div id="clientes_loading" class="list-loading" style="display:none;">
+          <i class="fas fa-spinner fa-spin"></i> Cargando…
+        </div>
+
         <div class="optional-fields" style="margin-top:15px;">
           <details>
             <summary>Campos opcionales del cliente</summary>
@@ -82,18 +94,30 @@
         </div>
       </div>
 
-      <!-- Producto -->
+      <!-- ── Producto ─────────────────────────────────────────────────────── -->
       <div class="form-card">
-        <div class="card-header"><h3>📦 Producto</h3></div>
-        <div class="search-container">
-          <input type="text" id="producto_search" placeholder="Buscar producto..."
-                 autocomplete="off" class="search-input" required>
-          <select name="producto" id="producto" required style="display:none;">
-            <option value="">-- Seleccionar Producto --</option>
-          </select>
-          <div id="producto_results" class="search-results"></div>
-          <div id="producto_selected" class="selected-item" style="display:none;"></div>
+        <div class="card-header" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+          <h3>📦 Producto</h3>
+          <button type="button" class="load-btn" id="loadProductosBtn"
+                  onclick="loadList('productos')">
+            <i class="fas fa-download"></i> Cargar productos
+          </button>
         </div>
+
+        <!-- Seleccionado -->
+        <div id="producto_selected" class="selected-item" style="display:none; margin-bottom:10px;"></div>
+        <input type="hidden" name="producto" id="producto" required>
+
+        <!-- Buscador + lista -->
+        <div id="productos_panel" style="display:none;">
+          <input type="text" id="producto_search" class="search-input"
+                 placeholder="Filtrar productos…" oninput="filterList('productos')">
+          <div id="productos_list" class="scroll-list"></div>
+        </div>
+        <div id="productos_loading" class="list-loading" style="display:none;">
+          <i class="fas fa-spinner fa-spin"></i> Cargando…
+        </div>
+
         <div class="optional-fields" style="margin-top:15px;">
           <details>
             <summary>Campos opcionales del producto</summary>
@@ -111,7 +135,7 @@
         </div>
       </div>
 
-      <!-- Embarque -->
+      <!-- ── Embarque ──────────────────────────────────────────────────────── -->
       <div class="form-card">
         <div class="card-header"><h3>📋 Detalles del Embarque</h3></div>
         <div class="input-grid">
@@ -155,70 +179,181 @@
   </form>
 </div>
 
+<style>
+.load-btn {
+    background: #3498db; color: #fff; border: none; border-radius: 6px;
+    padding: 6px 14px; font-size: .82rem; font-weight: 600; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px; transition: background .15s;
+}
+.load-btn:hover { background: #217dbb; }
+.load-btn:disabled { background: #90caf9; cursor: default; }
+
+.scroll-list {
+    margin-top: 8px;
+    max-height: 220px;
+    overflow-y: auto;
+    border: 1px solid #d0d7de;
+    border-radius: 6px;
+    background: #fff;
+}
+.scroll-list-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    border-bottom: 1px solid #f0f0f0;
+    font-size: .88rem;
+    transition: background .12s;
+}
+.scroll-list-item:last-child { border-bottom: none; }
+.scroll-list-item:hover { background: #eef3ff; }
+.scroll-list-item.hidden { display: none; }
+
+.list-loading {
+    padding: 10px 0;
+    color: #718096;
+    font-size: .88rem;
+}
+</style>
+
 <script>
-function toggleHeaderFields() {
-  const checked = document.getElementById('edit_header').checked;
-  ['header_text','empresa_direccion','empresa_ciudad','empresa_contacto'].forEach(id => {
-    const el = document.getElementById(id);
-    el.disabled = !checked;
-    if (!checked) el.value = '';
-  });
-}
+// Cache local — se llena una sola vez por tipo al presionar el botón
+const _cache = { clientes: null, productos: null };
 
-function setupSearch(searchId, resultsId, selectId, selectedId, url) {
-  const search   = document.getElementById(searchId);
-  const results  = document.getElementById(resultsId);
-  const select   = document.getElementById(selectId);
-  const selected = document.getElementById(selectedId);
-  let timeout;
+const URLS = {
+    clientes:  '{{ url_for("labels.search_clientes") }}',
+    productos: '{{ url_for("labels.search_productos") }}',
+};
 
-  search.addEventListener('input', function () {
-    clearTimeout(timeout);
-    const q = this.value.trim();
-    if (q.length < 2) { results.innerHTML = ''; results.style.display = 'none'; return; }
-    timeout = setTimeout(() => {
-      fetch(`${url}?q=${encodeURIComponent(q)}`)
-        .then(r => r.json())
+// Mapeo de tipo → IDs del DOM
+const IDS = {
+    clientes:  { panel: 'clientes_panel', list: 'clientes_list', search: 'cliente_search',
+                 loading: 'clientes_loading', hidden: 'cliente', selected: 'cliente_selected',
+                 btn: 'loadClientesBtn' },
+    productos: { panel: 'productos_panel', list: 'productos_list', search: 'producto_search',
+                 loading: 'productos_loading', hidden: 'producto', selected: 'producto_selected',
+                 btn: 'loadProductosBtn' },
+};
+
+function loadList(type) {
+    const ids = IDS[type];
+    if (_cache[type]) {
+        document.getElementById(ids.panel).style.display = '';
+        return;
+    }
+
+    const btn     = document.getElementById(ids.btn);
+    const loading = document.getElementById(ids.loading);
+    btn.disabled  = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Cargando…';
+    loading.style.display = '';
+
+    fetch(URLS[type])
+        .then(r => {
+            if (!r.ok) throw new Error(`HTTP ${r.status}`);
+            return r.json();
+        })
         .then(data => {
-          results.innerHTML = '';
-          if (!data.length) { results.style.display = 'none'; return; }
-          results.style.display = 'block';
-          data.forEach(item => {
-            const div = document.createElement('div');
-            div.className = 'search-item';
-            div.textContent = item.name || item.display_name;
-            div.onclick = () => {
-              const name = item.name || item.display_name;
-              search.style.display = 'none';
-              selected.innerHTML = `<span class="selected-name">${name}</span>
-                <button type="button" class="clear-btn" onclick="clearSel('${searchId}')">×</button>`;
-              selected.style.display = 'flex';
-              select.innerHTML = `<option value="${item.id}" selected>${name}</option>`;
-              results.innerHTML = ''; results.style.display = 'none';
-            };
-            results.appendChild(div);
-          });
+            if (!Array.isArray(data)) throw new Error('Respuesta inesperada: ' + JSON.stringify(data));
+            _cache[type] = data;
+            renderList(type, data);
+            document.getElementById(ids.panel).style.display = '';
+            loading.style.display = 'none';
+            btn.style.display = 'none';  // ocultar hasta recargar página
+        })
+        .catch(err => {
+            console.error('[Labels] Error cargando', type, err);
+            loading.style.display = 'none';
+            btn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Error — reintentar';
+            btn.disabled  = false;
         });
-    }, 300);
-  });
 }
 
-function clearSel(searchId) {
-  const search   = document.getElementById(searchId);
-  const selected = document.getElementById(searchId.replace('_search', '_selected'));
-  const select   = document.getElementById(searchId.replace('_search', ''));
-  search.style.display = 'block'; search.value = '';
-  selected.style.display = 'none';
-  select.innerHTML = '<option value="">-- Seleccionar --</option>';
-  search.focus();
+function _startReloadCountdown(type) {
+    const ids = IDS[type];
+    const btn = document.getElementById(ids.btn);
+    const end = _fetchedAt[type] + CACHE_TTL_MS;
+
+    btn.disabled = true;
+
+    const interval = setInterval(() => {
+        const remaining = Math.ceil((end - Date.now()) / 1000);
+        if (remaining <= 0) {
+            clearInterval(interval);
+            btn.innerHTML = '<i class="fas fa-sync-alt"></i> Recargar';
+            btn.disabled  = false;
+            btn.onclick   = () => reloadList(type);
+        } else {
+            const m = Math.floor(remaining / 60);
+            const s = String(remaining % 60).padStart(2, '0');
+            btn.innerHTML = `<i class="fas fa-clock"></i> Recargar en ${m}:${s}`;
+        }
+    }, 1000);
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  setupSearch('cliente_search',  'cliente_results',  'cliente',  'cliente_selected',
-              '{{ url_for("labels.search_clientes") }}');
-  setupSearch('producto_search', 'producto_results', 'producto', 'producto_selected',
-              '{{ url_for("labels.search_productos") }}');
-  toggleHeaderFields();
-});
+function reloadList(type) {
+    const ids = IDS[type];
+    _cache[type] = null;
+    document.getElementById(ids.panel).style.display    = 'none';
+    document.getElementById(ids.search).value           = '';
+    document.getElementById(ids.hidden).value           = '';
+    document.getElementById(ids.selected).style.display = 'none';
+    const btn   = document.getElementById(ids.btn);
+    btn.style.display = '';
+    btn.onclick = () => loadList(type);
+    loadList(type);
+}
+
+function renderList(type, items) {
+    const container = document.getElementById(`${type}_list`);
+    container.innerHTML = '';
+    items.forEach(item => {
+        const label = (item.name || item.display_name || '').trim();
+        if (!label) return;  // saltar registros sin nombre
+        const div = document.createElement('div');
+        div.className = 'scroll-list-item';
+        div.textContent = label;
+        div.dataset.label = label.toLowerCase();
+        div.onclick = () => selectItem(type, item.id, label);
+        container.appendChild(div);
+    });
+}
+
+function filterList(type) {
+    const q = document.getElementById(IDS[type].search).value.toLowerCase();
+    document.querySelectorAll(`#${IDS[type].list} .scroll-list-item`).forEach(el => {
+        el.classList.toggle('hidden', q && !el.dataset.label.includes(q));
+    });
+}
+
+function selectItem(type, id, label) {
+    const ids = IDS[type];
+    document.getElementById(ids.hidden).value           = id;
+    document.getElementById(ids.selected).innerHTML     = `
+        <span class="selected-name">${label}</span>
+        <button type="button" class="clear-btn" onclick="clearSel('${type}')">×</button>`;
+    document.getElementById(ids.selected).style.display = 'flex';
+    document.getElementById(ids.panel).style.display    = 'none';
+    document.getElementById(ids.search).value           = '';
+    document.querySelectorAll(`#${ids.list} .scroll-list-item`).forEach(el => {
+        el.classList.remove('hidden');
+    });
+}
+
+function clearSel(type) {
+    const ids = IDS[type];
+    document.getElementById(ids.hidden).value           = '';
+    document.getElementById(ids.selected).style.display = 'none';
+    if (_cache[type]) document.getElementById(ids.panel).style.display = '';
+}
+
+function toggleHeaderFields() {
+    const checked = document.getElementById('edit_header').checked;
+    ['header_text','empresa_direccion','empresa_ciudad','empresa_contacto'].forEach(id => {
+        const el = document.getElementById(id);
+        el.disabled = !checked;
+        if (!checked) el.value = '';
+    });
+}
+
+document.addEventListener('DOMContentLoaded', toggleHeaderFields);
 </script>
 {% endblock %}
