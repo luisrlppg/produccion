@@ -152,10 +152,12 @@ def submit_report():
             report_id, name, job_shift, date, quantity_persons,
             machine_data, assembly_data, stringing_data, gluing_data, delivery_data,
             total_production, total_machines, production_per_worker, additional_notes, timestamp,
+            report_url=report_url,
         )
         nm.broadcast(
             subject=f'Nuevo Reporte de Produccion #{report_id} - {name}',
-            text=email_body,
+            text=f'Nuevo reporte de producción #{report_id} — {name} ({get_text(job_shift)}) — {date}',
+            html=email_body,
             telegram_text=simple_msg,
             whatsapp_text=simple_msg,
             report_type='production',

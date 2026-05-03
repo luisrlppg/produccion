@@ -20,6 +20,28 @@ from blueprints.labels import labels_bp
 from database import init_db
 from utils import get_text
 
+
+def _start_stock_scheduler():
+    """Inicia el job de verificación de stock cada 8 horas."""
+    try:
+        from apscheduler.schedulers.background import BackgroundScheduler
+        from blueprints.signage.stock_monitor import StockMonitor
+
+        monitor   = StockMonitor()
+        scheduler = BackgroundScheduler(daemon=True)
+        scheduler.add_job(
+            func     = lambda: monitor.check_and_notify(force=False),
+            trigger  = 'interval',
+            hours    = 8,
+            id       = 'stock_check',
+            name     = 'Verificación de stock bajo',
+            replace_existing = True,
+        )
+        scheduler.start()
+        print('[Scheduler] Verificación de stock cada 8 horas iniciada.')
+    except Exception as e:
+        print(f'[Scheduler] Error al iniciar: {e}')
+
 load_dotenv()
 
 
@@ -131,6 +153,10 @@ def create_app() -> Flask:
     app.register_blueprint(production_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(labels_bp)
+
+    # Iniciar scheduler solo una vez (no en el reloader de desarrollo)
+    if not app.debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
+        _start_stock_scheduler()
 
     return app
 

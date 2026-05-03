@@ -197,43 +197,170 @@ def build_production_email_body(report_id, name, job_shift, date, workers,
                                  machine_data, assembly_data, stringing_data,
                                  gluing_data, delivery_data,
                                  total_production, total_machines, production_per_worker,
-                                 additional_notes, timestamp) -> str:
-    def section(title, rows):
+                                 additional_notes, timestamp,
+                                 report_url: str | None = None) -> str:
+
+    total_combined = total_production + total_machines
+
+    # ── Helpers ───────────────────────────────────────────────────────────────
+    def kpi(label, value, color):
+        return f"""
+        <td style="text-align:center; padding:12px 16px;">
+            <div style="font-size:1.5rem; font-weight:800; color:{color};">{value}</div>
+            <div style="font-size:.72rem; text-transform:uppercase; letter-spacing:.5px;
+                        color:#718096; margin-top:3px;">{label}</div>
+        </td>"""
+
+    def section_table(title, rows, cols):
         if not rows:
             return ''
-        lines = [f'\n--- {title} ---']
-        lines += [f'• {r}' for r in rows]
-        return '\n'.join(lines)
+        header = ''.join(f'<th style="padding:8px 12px; text-align:left; background:#f7fafc; color:#4a5568; font-size:.8rem; text-transform:uppercase; letter-spacing:.4px;">{c}</th>' for c in cols)
+        body   = ''
+        for row in rows:
+            cells = ''.join(f'<td style="padding:8px 12px; border-bottom:1px solid #edf2f7; font-size:.88rem;">{v}</td>' for v in row)
+            body += f'<tr>{cells}</tr>'
+        return f"""
+        <div style="margin-bottom:24px;">
+            <div style="font-weight:700; color:#2d3748; font-size:.95rem; margin-bottom:8px;
+                        padding-bottom:6px; border-bottom:2px solid #e2e8f0;">{title}</div>
+            <table style="width:100%; border-collapse:collapse;">
+                <thead><tr>{header}</tr></thead>
+                <tbody>{body}</tbody>
+            </table>
+        </div>"""
 
-    machines_rows = [
-        f'Maquina {m[0]}: {m[1]} unidades - {get_text(m[2])} {get_text(m[3])}'
-        for m in machine_data
-    ] if machine_data else []
+    # ── KPIs ──────────────────────────────────────────────────────────────────
+    kpis_html = f"""
+    <table style="width:100%; border-collapse:collapse; background:#f7fafc;
+                  border-radius:8px; margin-bottom:24px;">
+        <tr>
+            {kpi('Total', f'{total_combined:,}', '#2b6cb0')}
+            {kpi('Personal', f'{total_production:,}', '#276749')}
+            {kpi('Máquinas', f'{total_machines:,}', '#c05621')}
+            {kpi('Uds/persona', production_per_worker, '#553c9a')}
+        </tr>
+    </table>"""
 
-    return f"""
-╔══════════════════════════════════════════════════════════════════════════════╗
-║                           REPORTE DE PRODUCCION                              ║
-╚══════════════════════════════════════════════════════════════════════════════╝
+    # ── Secciones de productos ─────────────────────────────────────────────────
+    machines_section = section_table(
+        '🔧 Producción de Máquinas',
+        [[f'Máquina {m[0]}', m[1], get_text(m[2]), get_text(m[3])] for m in machine_data],
+        ['Máquina', 'Cantidad', 'Tipo', 'Color'],
+    ) if machine_data else ''
 
-📋 INFORMACION GENERAL
-• ID del Reporte: {report_id}
-• Reportado por: {name}
-• Turno: {get_text(job_shift)}
-• Fecha: {date}
-• Trabajadores en turno: {workers}
-• Fecha y hora de envio: {timestamp}
+    assembly_section = section_table(
+        '🔩 Ensamble',
+        [[p, q] for p, q in assembly_data],
+        ['Producto', 'Cantidad'],
+    ) if assembly_data else ''
 
-📊 RESUMEN DE PRODUCCION
-• Produccion Personal (ensamble/ensartado/pegado): {total_production} unidades
-• Produccion de Maquinas: {total_machines} unidades
-• Produccion por Trabajador: {production_per_worker} unidades/trabajador
-{section('PRODUCCION DE MAQUINAS', machines_rows)}
-{section('ENSAMBLE', [f'{p}: {q} unidades' for p, q in assembly_data])}
-{section('ENSARTADO', [f'{p}: {q} unidades' for p, q in stringing_data])}
-{section('PEGADO', [f'{p}: {q} unidades' for p, q in gluing_data])}
-{section('ENTREGAS', [f'Cliente: {c}  Producto: {d}' for c, d, *_ in delivery_data])}
-{section('NOTAS ADICIONALES', [additional_notes]) if additional_notes else ''}
-═══════════════════════════════════════════════════════════════════════════════
+    stringing_section = section_table(
+        '🧵 Ensartado',
+        [[p, q] for p, q in stringing_data],
+        ['Producto', 'Cantidad'],
+    ) if stringing_data else ''
 
-Este es un reporte automatico del sistema de Plasticos Plasa de Guadalajara.
-"""
+    gluing_section = section_table(
+        '🔗 Pegado',
+        [[p, q] for p, q in gluing_data],
+        ['Producto', 'Cantidad'],
+    ) if gluing_data else ''
+
+    deliveries_section = section_table(
+        '🚚 Entregas',
+        [[c, d] for c, d, *_ in delivery_data],
+        ['Cliente', 'Producto'],
+    ) if delivery_data else ''
+
+    notes_html = f"""
+    <div style="background:#fffbeb; border-left:4px solid #f6ad55; padding:12px 16px;
+                border-radius:4px; margin-bottom:24px; font-size:.88rem; color:#744210;">
+        <strong>📝 Notas:</strong> {additional_notes}
+    </div>""" if additional_notes else ''
+
+    link_html = f"""
+    <div style="text-align:center; margin:24px 0;">
+        <a href="{report_url}"
+           style="background:#3182ce; color:#fff; padding:12px 28px; border-radius:6px;
+                  text-decoration:none; font-weight:600; font-size:.95rem; display:inline-block;">
+            Ver Reporte Completo →
+        </a>
+    </div>""" if report_url else ''
+
+    return f"""<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"></head>
+<body style="margin:0; padding:0; background:#edf2f7; font-family:'Segoe UI',Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#edf2f7; padding:32px 0;">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0"
+       style="background:#fff; border-radius:10px; overflow:hidden;
+              box-shadow:0 2px 8px rgba(0,0,0,.08);">
+
+    <!-- Header -->
+    <tr>
+        <td style="background:#2b6cb0; padding:24px 32px;">
+            <div style="color:#fff; font-size:1.3rem; font-weight:700;">
+                📋 Nuevo Reporte de Producción
+            </div>
+            <div style="color:#bee3f8; font-size:.88rem; margin-top:4px;">
+                Plásticos Plasa de Guadalajara
+            </div>
+        </td>
+    </tr>
+
+    <!-- Info general -->
+    <tr>
+        <td style="padding:24px 32px 0;">
+            <table style="width:100%; border-collapse:collapse; font-size:.88rem; color:#4a5568;">
+                <tr>
+                    <td style="padding:4px 0;"><strong>Reporte #</strong></td>
+                    <td style="padding:4px 0;">{report_id}</td>
+                    <td style="padding:4px 0;"><strong>Fecha</strong></td>
+                    <td style="padding:4px 0;">{date}</td>
+                </tr>
+                <tr>
+                    <td style="padding:4px 0;"><strong>Reportado por</strong></td>
+                    <td style="padding:4px 0;">{name}</td>
+                    <td style="padding:4px 0;"><strong>Turno</strong></td>
+                    <td style="padding:4px 0;">{get_text(job_shift)}</td>
+                </tr>
+                <tr>
+                    <td style="padding:4px 0;"><strong>Trabajadores</strong></td>
+                    <td style="padding:4px 0;">{workers}</td>
+                    <td style="padding:4px 0;"><strong>Enviado</strong></td>
+                    <td style="padding:4px 0;">{timestamp}</td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+
+    <!-- KPIs -->
+    <tr><td style="padding:20px 32px 0;">{kpis_html}</td></tr>
+
+    <!-- Secciones -->
+    <tr>
+        <td style="padding:8px 32px 24px;">
+            {machines_section}
+            {assembly_section}
+            {stringing_section}
+            {gluing_section}
+            {deliveries_section}
+            {notes_html}
+            {link_html}
+        </td>
+    </tr>
+
+    <!-- Footer -->
+    <tr>
+        <td style="background:#f7fafc; padding:16px 32px; text-align:center;
+                   font-size:.75rem; color:#a0aec0; border-top:1px solid #e2e8f0;">
+            Reporte automático · Plásticos Plasa de Guadalajara
+        </td>
+    </tr>
+
+</table>
+</td></tr>
+</table>
+</body>
+</html>"""
