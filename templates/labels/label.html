@@ -1,0 +1,224 @@
+{% extends "base.html" %}
+
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/labels.css') }}">
+
+<div class="label-container">
+  <h1 class="label-title">🏷️ Generar Etiqueta</h1>
+
+  <form method="post" enctype="multipart/form-data" class="label-form"
+        action="{{ url_for('labels.label') }}">
+
+    <!-- Información de la empresa -->
+    <div class="form-card">
+      <div class="card-header">
+        <h3>🏢 Información de la Empresa</h3>
+        <label class="checkbox-container">
+          <input type="checkbox" id="edit_header" name="edit_header" value="1"
+                 onchange="toggleHeaderFields()">
+          Editar campos del encabezado
+        </label>
+      </div>
+      <div class="input-grid">
+        <div class="input-group">
+          <label for="header_text">Título principal:</label>
+          <input type="text" id="header_text" name="header_text"
+                 placeholder="Plásticos Plasa de Guadalajara S.A. de C.V." disabled>
+        </div>
+        <div class="input-group">
+          <label for="empresa_direccion">Dirección:</label>
+          <input type="text" id="empresa_direccion" name="empresa_direccion"
+                 placeholder="Calle Florentino Acosta #1090" disabled>
+        </div>
+        <div class="input-group">
+          <label for="empresa_ciudad">Ciudad y CP:</label>
+          <input type="text" id="empresa_ciudad" name="empresa_ciudad"
+                 placeholder="Guadalajara, Jalisco   C.P.44329" disabled>
+        </div>
+        <div class="input-group">
+          <label for="empresa_contacto">Contacto:</label>
+          <input type="text" id="empresa_contacto" name="empresa_contacto"
+                 placeholder="Teléfono: 33-3651-5424    www.plasticosplasa.com" disabled>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-sections">
+
+      <!-- Cliente -->
+      <div class="form-card">
+        <div class="card-header"><h3>👤 Cliente</h3></div>
+        <div class="search-container">
+          <input type="text" id="cliente_search" placeholder="Buscar cliente..."
+                 autocomplete="off" class="search-input" required>
+          <select name="cliente" id="cliente" required style="display:none;">
+            <option value="">-- Seleccionar Cliente --</option>
+          </select>
+          <div id="cliente_results" class="search-results"></div>
+          <div id="cliente_selected" class="selected-item" style="display:none;"></div>
+        </div>
+        <div class="optional-fields" style="margin-top:15px;">
+          <details>
+            <summary>Campos opcionales del cliente</summary>
+            <div class="input-grid" style="margin-top:10px;">
+              <div class="input-group">
+                <label>Nombre personalizado:</label>
+                <input type="text" name="cliente_name" placeholder="Sobrescribe el nombre">
+              </div>
+              <div class="input-group">
+                <label>Teléfono personalizado:</label>
+                <input type="text" name="cliente_phone" placeholder="Sobrescribe el teléfono">
+              </div>
+              <div class="input-group">
+                <label>Dirección personalizada:</label>
+                <input type="text" name="cliente_address" placeholder="Sobrescribe la dirección">
+              </div>
+              <div class="input-group">
+                <label>Email personalizado:</label>
+                <input type="text" name="cliente_email" placeholder="Sobrescribe el email">
+              </div>
+            </div>
+          </details>
+        </div>
+      </div>
+
+      <!-- Producto -->
+      <div class="form-card">
+        <div class="card-header"><h3>📦 Producto</h3></div>
+        <div class="search-container">
+          <input type="text" id="producto_search" placeholder="Buscar producto..."
+                 autocomplete="off" class="search-input" required>
+          <select name="producto" id="producto" required style="display:none;">
+            <option value="">-- Seleccionar Producto --</option>
+          </select>
+          <div id="producto_results" class="search-results"></div>
+          <div id="producto_selected" class="selected-item" style="display:none;"></div>
+        </div>
+        <div class="optional-fields" style="margin-top:15px;">
+          <details>
+            <summary>Campos opcionales del producto</summary>
+            <div class="input-grid" style="margin-top:10px;">
+              <div class="input-group">
+                <label>Nombre personalizado:</label>
+                <input type="text" name="producto_name" placeholder="Sobrescribe el nombre">
+              </div>
+              <div class="input-group">
+                <label>Imagen personalizada:</label>
+                <input type="file" name="producto_image" accept="image/*">
+              </div>
+            </div>
+          </details>
+        </div>
+      </div>
+
+      <!-- Embarque -->
+      <div class="form-card">
+        <div class="card-header"><h3>📋 Detalles del Embarque</h3></div>
+        <div class="input-grid">
+          <div class="input-group">
+            <label>Cantidad</label>
+            <input type="text" name="cantidad" placeholder="Ej: 100 piezas">
+          </div>
+          <div class="input-group">
+            <label>Peso Bruto</label>
+            <input type="text" name="peso_bruto" placeholder="Ej: 25 kg">
+          </div>
+          <div class="input-group">
+            <label>Peso Neto</label>
+            <input type="text" name="peso_neto" placeholder="Ej: 23 kg">
+          </div>
+          <div class="input-group">
+            <label>Peso Unitario</label>
+            <input type="text" name="peso_unitario" placeholder="Ej: 0.23 kg">
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Pie de página -->
+    <div class="form-card">
+      <div class="card-header"><h3>📝 Pie de Página</h3></div>
+      <div class="input-group">
+        <label>Texto del pie de página:</label>
+        <input type="text" name="footer_text"
+               placeholder="Generado por Plásticos Plasa - Etiqueta personalizada">
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="generate-btn">
+        <span>📄</span> Generar Etiqueta PDF
+      </button>
+    </div>
+
+  </form>
+</div>
+
+<script>
+function toggleHeaderFields() {
+  const checked = document.getElementById('edit_header').checked;
+  ['header_text','empresa_direccion','empresa_ciudad','empresa_contacto'].forEach(id => {
+    const el = document.getElementById(id);
+    el.disabled = !checked;
+    if (!checked) el.value = '';
+  });
+}
+
+function setupSearch(searchId, resultsId, selectId, selectedId, url) {
+  const search   = document.getElementById(searchId);
+  const results  = document.getElementById(resultsId);
+  const select   = document.getElementById(selectId);
+  const selected = document.getElementById(selectedId);
+  let timeout;
+
+  search.addEventListener('input', function () {
+    clearTimeout(timeout);
+    const q = this.value.trim();
+    if (q.length < 2) { results.innerHTML = ''; results.style.display = 'none'; return; }
+    timeout = setTimeout(() => {
+      fetch(`${url}?q=${encodeURIComponent(q)}`)
+        .then(r => r.json())
+        .then(data => {
+          results.innerHTML = '';
+          if (!data.length) { results.style.display = 'none'; return; }
+          results.style.display = 'block';
+          data.forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'search-item';
+            div.textContent = item.name || item.display_name;
+            div.onclick = () => {
+              const name = item.name || item.display_name;
+              search.style.display = 'none';
+              selected.innerHTML = `<span class="selected-name">${name}</span>
+                <button type="button" class="clear-btn" onclick="clearSel('${searchId}')">×</button>`;
+              selected.style.display = 'flex';
+              select.innerHTML = `<option value="${item.id}" selected>${name}</option>`;
+              results.innerHTML = ''; results.style.display = 'none';
+            };
+            results.appendChild(div);
+          });
+        });
+    }, 300);
+  });
+}
+
+function clearSel(searchId) {
+  const search   = document.getElementById(searchId);
+  const selected = document.getElementById(searchId.replace('_search', '_selected'));
+  const select   = document.getElementById(searchId.replace('_search', ''));
+  search.style.display = 'block'; search.value = '';
+  selected.style.display = 'none';
+  select.innerHTML = '<option value="">-- Seleccionar --</option>';
+  search.focus();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  setupSearch('cliente_search',  'cliente_results',  'cliente',  'cliente_selected',
+              '{{ url_for("labels.search_clientes") }}');
+  setupSearch('producto_search', 'producto_results', 'producto', 'producto_selected',
+              '{{ url_for("labels.search_productos") }}');
+  toggleHeaderFields();
+});
+</script>
+{% endblock %}

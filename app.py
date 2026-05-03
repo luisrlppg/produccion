@@ -16,6 +16,7 @@ from auth import (check_reports_credentials, check_signage_credentials,
                   reports_login_required)
 from blueprints.signage import signage_bp
 from blueprints.reports import personal_bp, company_bp, production_bp, admin_bp
+from blueprints.labels import labels_bp
 from database import init_db
 from utils import get_text
 
@@ -129,6 +130,7 @@ def create_app() -> Flask:
     app.register_blueprint(company_bp)
     app.register_blueprint(production_bp)
     app.register_blueprint(admin_bp)
+    app.register_blueprint(labels_bp)
 
     return app
 
