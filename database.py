@@ -141,7 +141,59 @@ def insert_production_report(
         return cur.lastrowid
 
 
+def get_production_report_by_id(report_id: int) -> dict | None:
+    """Retorna un reporte por ID o None si no existe."""
+    with get_db() as db:
+        row = db.execute(
+            'SELECT * FROM production_reports WHERE id = ?', (report_id,)
+        ).fetchone()
+        return dict(row) if row else None
+
+
 def get_production_reports(fecha: str | None = None) -> list[dict]:
+    """Retorna todos los reportes o los de una fecha específica, como lista de dicts."""
+    with get_db() as db:
+        if fecha:
+            rows = db.execute(
+                'SELECT * FROM production_reports WHERE fecha = ? ORDER BY id',
+                (fecha,)
+            ).fetchall()
+        else:
+            rows = db.execute(
+                'SELECT * FROM production_reports ORDER BY timestamp DESC'
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def get_production_dates() -> list[str]:
+    """Retorna lista de fechas únicas con reportes, ordenadas descendente."""
+    with get_db() as db:
+        rows = db.execute(
+            'SELECT DISTINCT fecha FROM production_reports ORDER BY fecha DESC'
+        ).fetchall()
+        return [r[0] for r in rows]
+
+
+def update_production_report(report_id: int, **fields) -> bool:
+    """Actualiza campos de un reporte. Retorna True si se modificó alguna fila."""
+    if not fields:
+        return False
+    cols = ', '.join(f'{k} = ?' for k in fields)
+    vals = list(fields.values()) + [report_id]
+    with get_db() as db:
+        cur = db.execute(
+            f'UPDATE production_reports SET {cols} WHERE id = ?', vals
+        )
+        return cur.rowcount > 0
+
+
+def delete_production_report(report_id: int) -> bool:
+    """Elimina un reporte por ID. Retorna True si se eliminó."""
+    with get_db() as db:
+        cur = db.execute(
+            'DELETE FROM production_reports WHERE id = ?', (report_id,)
+        )
+        return cur.rowcount > 0
     """Retorna todos los reportes o los de una fecha específica, como lista de dicts."""
     with get_db() as db:
         if fecha:

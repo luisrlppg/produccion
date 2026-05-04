@@ -9,8 +9,12 @@ from flask import (Blueprint, Response, current_app, flash, redirect,
 from auth import login_required
 from database import (get_production_reports, get_production_dates,
                       get_all_production_reports, get_simple_reports,
-                      export_production_csv, export_simple_csv)
-from utils import get_text, read_production_details_json
+                      export_production_csv, export_simple_csv,
+                      get_production_report_by_id, update_production_report,
+                      delete_production_report)
+from utils import (get_text, read_production_details_json,
+                   _format_products, _format_deliveries,
+                   save_production_details_json)
 
 admin_bp = Blueprint('panel', __name__)
 
@@ -209,6 +213,159 @@ def production_stats():
 
     return render_template('reports/panel_production_stats.html',
                            stats=stats, get_text=get_text)
+
+
+# ── Editar reporte ─────────────────────────────────────────────────────────────
+
+@admin_bp.route('/reportes/editar/<int:report_id>', methods=['GET', 'POST'])
+@login_required
+def edit_report(report_id):
+    report = get_production_report_by_id(report_id)
+    if not report:
+        flash('Reporte no encontrado', 'error')
+        return redirect(url_for('reportes'))
+
+    if request.method == 'POST':
+        import json as _json
+        from utils import get_text as _gt
+
+        name             = request.form['name'].strip()
+        job_shift        = request.form['job_shift'].strip()
+        date             = request.form['date'].strip()
+        quantity_persons = int(request.form['quantity_persons'].strip())
+        additional_notes = request.form.get('additional_notes', '').strip()
+
+        # Máquinas
+        machine_data = []
+        for i in range(1, 4):
+            qty        = request.form.get(f'machine{i}_quantity', '').strip()
+            brush_type = request.form.get(f'machine{i}_brush_type', '').strip()
+            color      = request.form.get(f'machine{i}_color', '').strip()
+            if qty:
+                machine_data.append([i, qty, brush_type, color])
+
+        def _parse_json_field(field):
+            raw = request.form.get(field, '')
+            if not raw:
+                return []
+            try:
+                return [[p['name'], p['quantity']] for p in _json.loads(raw)]
+            except (_json.JSONDecodeError, KeyError):
+                return []
+
+        assembly_data  = _parse_json_field('assembly_products')
+        stringing_data = _parse_json_field('stringing_products')
+        gluing_data    = _parse_json_field('gluing_products')
+
+        delivery_data = []
+        raw = request.form.get('deliveries', '')
+        if raw:
+            try:
+                delivery_data = [[d['customer'], d['description'], d.get('quantity', 1)]
+                                 for d in _json.loads(raw)]
+            except (_json.JSONDecodeError, KeyError):
+                pass
+
+        def _sum(data):
+            total = 0
+            for row in data:
+                try:
+                    total += int(row[1])
+                except (ValueError, IndexError):
+                    pass
+            return total
+
+        total_production = _sum(assembly_data) + _sum(stringing_data) + _sum(gluing_data)
+        try:
+            total_machines = sum(int(m[1]) for m in machine_data)
+        except (ValueError, IndexError):
+            total_machines = 0
+        try:
+            production_per_worker = round(total_production / quantity_persons, 2)
+        except ZeroDivisionError:
+            production_per_worker = 0
+
+        machines = {str(m[0]): m for m in machine_data}
+        def mf(num):
+            m = machines.get(str(num))
+            return (int(m[1]), _gt(m[2]), _gt(m[3])) if m else (0, '', '')
+
+        m1, m2, m3 = mf(1), mf(2), mf(3)
+
+        update_production_report(
+            report_id,
+            nombre=name,
+            turno=_gt(job_shift),
+            fecha=date,
+            trabajadores=quantity_persons,
+            maquina1_cantidad=m1[0], maquina1_tipo=m1[1], maquina1_color=m1[2],
+            maquina2_cantidad=m2[0], maquina2_tipo=m2[1], maquina2_color=m2[2],
+            maquina3_cantidad=m3[0], maquina3_tipo=m3[1], maquina3_color=m3[2],
+            ensamble=_format_products(assembly_data),
+            ensartado=_format_products(stringing_data),
+            pegado=_format_products(gluing_data),
+            entregas=_format_deliveries(delivery_data),
+            produccion_personal=total_production,
+            produccion_maquinas=total_machines,
+            produccion_total=total_production + total_machines,
+            produccion_por_trabajador=production_per_worker,
+            notas=additional_notes,
+        )
+
+        # Actualizar JSON de detalles
+        save_production_details_json(
+            report_id, name, job_shift, date, quantity_persons,
+            report['timestamp'], assembly_data, stringing_data, gluing_data,
+            update_existing=True,
+        )
+
+        flash(f'Reporte #{report_id} actualizado correctamente', 'success')
+        return redirect(url_for('panel.production_view', date=date))
+
+    # GET — pre-llenar el formulario con datos existentes
+    return render_template('reports/edit_production.html',
+                           report=report, get_text=get_text)
+
+
+# ── Eliminar reporte (solo admin) ──────────────────────────────────────────────
+
+@admin_bp.route('/reportes/eliminar/<int:report_id>', methods=['POST'])
+@login_required
+def delete_report(report_id):
+    admin_password = os.getenv('ADMIN_PASSWORD', '')
+    provided       = request.form.get('admin_password', '')
+
+    if not admin_password or provided != admin_password:
+        flash('Contraseña de administrador incorrecta', 'error')
+        return redirect(request.referrer or url_for('panel.production_view'))
+
+    report = get_production_report_by_id(report_id)
+    if not report:
+        flash('Reporte no encontrado', 'error')
+        return redirect(url_for('panel.production_view'))
+
+    date = report['fecha']
+    delete_production_report(report_id)
+
+    # Eliminar del JSON de detalles
+    _delete_from_json(report_id)
+
+    flash(f'Reporte #{report_id} eliminado', 'success')
+    return redirect(url_for('panel.production_view', date=date))
+
+
+def _delete_from_json(report_id: int):
+    """Elimina un reporte del production_details.json."""
+    import json as _json
+    path = 'data/production_details.json'
+    try:
+        with open(path, encoding='utf-8') as f:
+            records = _json.load(f)
+        records = [r for r in records if str(r.get('id_reporte')) != str(report_id)]
+        with open(path, 'w', encoding='utf-8') as f:
+            _json.dump(records, f, ensure_ascii=False, indent=2)
+    except (FileNotFoundError, _json.JSONDecodeError):
+        pass
 
 
 # ── Descargas CSV (generadas dinámicamente desde la DB) ────────────────────────

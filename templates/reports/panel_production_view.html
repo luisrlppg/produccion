@@ -34,12 +34,24 @@
         {% for report in reports %}
             <div class="card" style="margin-bottom: 30px;">
                 <div class="card-header">
-                    <h4>Reporte #{{ report.csv['ID Reporte'] }} - {{ report.csv['Nombre'] }}</h4>
-                    <p style="margin: 5px 0; color: #666;">
-                        Turno: {{ report.csv['Turno'] }} | 
-                        Trabajadores: {{ report.csv['Trabajadores'] }} | 
-                        Enviado: {{ report.csv['Fecha y Hora de Envio'] }}
-                    </p>
+                    <div style="display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+                        <div>
+                            <h4>Reporte #{{ report.csv['ID Reporte'] }} - {{ report.csv['Nombre'] }}</h4>
+                            <p style="margin: 5px 0; color: #666;">
+                                Turno: {{ report.csv['Turno'] }} | 
+                                Trabajadores: {{ report.csv['Trabajadores'] }} | 
+                                Enviado: {{ report.csv['Fecha y Hora de Envio'] }}
+                            </p>
+                        </div>
+                        <div style="display:flex; gap:8px; flex-shrink:0;">
+                            <a href="{{ url_for('panel.edit_report', report_id=report.csv['ID Reporte']) }}"
+                               class="btn btn-warning btn-sm">✏️ Editar</a>
+                            <button type="button" class="btn btn-danger btn-sm"
+                                    onclick="confirmDelete({{ report.csv['ID Reporte'] }})">
+                                🗑️ Eliminar
+                            </button>
+                        </div>
+                    </div>
                 </div>
                 <div class="card-body">
                     
@@ -225,6 +237,51 @@
 <div style="margin-top: 40px; text-align: center;">
     <a href="{{ url_for('reportes') }}" class="btn btn-secondary">← Volver a Reportes</a>
 </div>
+
+<!-- Modal eliminar -->
+<div id="deleteModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.5);
+     z-index:1000; align-items:center; justify-content:center;">
+    <div style="background:#fff; border-radius:12px; padding:28px; max-width:400px; width:90%;
+                box-shadow:0 8px 32px rgba(0,0,0,.2);">
+        <h4 style="margin:0 0 8px; color:#c53030;">🗑️ Eliminar Reporte</h4>
+        <p style="color:#4a5568; margin-bottom:20px; font-size:.9rem;">
+            Esta acción es permanente. Ingresa la contraseña de administrador para confirmar.
+        </p>
+        <form id="deleteForm" method="POST">
+            <div style="margin-bottom:16px;">
+                <label style="display:block; font-weight:600; margin-bottom:6px; font-size:.88rem;">
+                    Contraseña de administrador
+                </label>
+                <input type="password" name="admin_password" id="adminPasswordInput"
+                       style="width:100%; padding:8px 10px; border:1px solid #cbd5e0;
+                              border-radius:6px; font-size:.95rem;"
+                       placeholder="Contraseña admin" required>
+            </div>
+            <div style="display:flex; gap:10px; justify-content:flex-end;">
+                <button type="button" onclick="closeDeleteModal()"
+                        class="btn btn-secondary">Cancelar</button>
+                <button type="submit" class="btn btn-danger">Eliminar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function confirmDelete(reportId) {
+    const modal = document.getElementById('deleteModal');
+    const form  = document.getElementById('deleteForm');
+    form.action = '/reportes/eliminar/' + reportId;
+    document.getElementById('adminPasswordInput').value = '';
+    modal.style.display = 'flex';
+    setTimeout(() => document.getElementById('adminPasswordInput').focus(), 50);
+}
+function closeDeleteModal() {
+    document.getElementById('deleteModal').style.display = 'none';
+}
+document.getElementById('deleteModal').addEventListener('click', function(e) {
+    if (e.target === this) closeDeleteModal();
+});
+</script>
 
 <style>
 .section {

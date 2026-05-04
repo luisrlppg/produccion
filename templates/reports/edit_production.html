@@ -1,0 +1,279 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div style="max-width:860px; margin:0 auto;">
+
+<div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap;
+            gap:12px; margin-bottom:24px;">
+    <h2 style="margin:0;">✏️ Editar Reporte #{{ report.id }}</h2>
+    <a href="{{ url_for('panel.production_view', date=report.fecha) }}"
+       class="btn btn-secondary">← Volver</a>
+</div>
+
+<form method="POST" action="{{ url_for('panel.edit_report', report_id=report.id) }}">
+
+    {# ── Información del turno ── #}
+    <div class="section-card">
+        <h3>Información del Turno</h3>
+        <div class="form-group">
+            <label for="name">{{ get_text('name') }} <span style="color:#e53e3e">*</span></label>
+            <input type="text" id="name" name="name" required
+                   value="{{ report.nombre }}"
+                   style="border:2px solid #cbd5e0;">
+        </div>
+        <div class="grid-3col">
+            <div class="form-group">
+                <label for="job_shift">{{ get_text('job_shift') }} <span style="color:#e53e3e">*</span></label>
+                <select id="job_shift" name="job_shift" required style="border:2px solid #cbd5e0;">
+                    <option value="">Seleccionar turno</option>
+                    {% for val, label in [('morning','Matutino'),('afternoon','Vespertino'),('night','Nocturno')] %}
+                    <option value="{{ val }}"
+                        {% if report.turno == label %}selected{% endif %}>
+                        {{ label }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="date">{{ get_text('date') }} <span style="color:#e53e3e">*</span></label>
+                <input type="date" id="date" name="date" required
+                       value="{{ report.fecha }}"
+                       style="border:2px solid #cbd5e0;">
+            </div>
+            <div class="form-group">
+                <label for="quantity_persons">{{ get_text('quantity_persons') }} <span style="color:#e53e3e">*</span></label>
+                <input type="text" inputmode="numeric" pattern="[0-9]*"
+                       id="quantity_persons" name="quantity_persons" required
+                       value="{{ report.trabajadores }}"
+                       style="border:2px solid #cbd5e0;">
+            </div>
+        </div>
+    </div>
+
+    {# ── Máquinas ── #}
+    <div class="section-card">
+        <h3>{{ get_text('mascara_brush_production') }}</h3>
+        {% for i in [1, 2, 3] %}
+        {% set qty   = report['maquina' ~ i ~ '_cantidad'] %}
+        {% set tipo  = report['maquina' ~ i ~ '_tipo'] %}
+        {% set color = report['maquina' ~ i ~ '_color'] %}
+        <div class="machine-block">
+            <div class="machine-label">{{ get_text('machine_' ~ i) }}</div>
+            <div class="machine-fields">
+                <div class="machine-field-sm">
+                    <label>{{ get_text('quantity') }}</label>
+                    <input type="text" inputmode="numeric" pattern="[0-9]*"
+                           name="machine{{ i }}_quantity"
+                           value="{{ qty if qty else '' }}" placeholder="0">
+                </div>
+                <div class="machine-field-md">
+                    <label>{{ get_text('brush_type') }}</label>
+                    <select name="machine{{ i }}_brush_type">
+                        <option value="">Seleccionar</option>
+                        {% for val, label in [('straight','Recto'),('spiral','Espiral'),('bullet','Bala'),
+                                              ('mini_bullet','Balita'),('pine','Pino'),
+                                              ('peanut','Cacahuate'),('balloon','Globo')] %}
+                        <option value="{{ val }}" {% if tipo == label %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="machine-field-md">
+                    <label>{{ get_text('color') }}</label>
+                    <select name="machine{{ i }}_color">
+                        <option value="">Seleccionar</option>
+                        {% for val, label in [('black','Negro'),('brown','Cafe'),('blue','Azul'),
+                                              ('green','Verde'),('turquoise','Turquesa'),('pink','Rosa'),
+                                              ('purple','Morado'),('transparent','Transparente')] %}
+                        <option value="{{ val }}" {% if color == label %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    {# ── Ensamble ── #}
+    <div class="section-card">
+        <h3>{{ get_text('assembly_production') }}</h3>
+        <div id="assembly_rows">
+            {% if report.ensamble %}
+                {% for item in report.ensamble.split(', ') %}
+                {% set parts = item.split(': ') %}
+                <div class="assembly-row prod-row">
+                    <div class="prod-row-name">
+                        <label>Producto:</label>
+                        <input type="text" class="assembly-name"
+                               value="{{ parts[0] if parts|length > 0 else '' }}">
+                    </div>
+                    <div class="prod-row-qty">
+                        <label>Cantidad: <span style="color:#e53e3e">*</span></label>
+                        <input type="text" inputmode="numeric" pattern="[0-9]*"
+                               class="assembly-qty"
+                               value="{{ parts[1] if parts|length > 1 else '' }}">
+                    </div>
+                    <button type="button" onclick="removeRow(this,'assembly')"
+                            class="btn-remove prod-row-remove" aria-label="Eliminar">×</button>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="assembly-row prod-row">
+                    <div class="prod-row-name">
+                        <label>Producto:</label>
+                        <input type="text" class="assembly-name" placeholder="Nombre del producto">
+                    </div>
+                    <div class="prod-row-qty">
+                        <label>Cantidad: <span style="color:#e53e3e">*</span></label>
+                        <input type="text" inputmode="numeric" pattern="[0-9]*"
+                               class="assembly-qty" placeholder="0">
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+        <button type="button" onclick="addRow('assembly')" class="btn btn-success btn-add-row">
+            + Agregar producto
+        </button>
+        <input type="hidden" id="assembly_products" name="assembly_products" value="">
+    </div>
+
+    {# ── Ensartado ── #}
+    <div class="section-card">
+        <h3>Ensartado</h3>
+        <div id="stringing_rows">
+            {% if report.ensartado %}
+                {% for item in report.ensartado.split(', ') %}
+                {% set parts = item.split(': ') %}
+                <div class="stringing-row prod-row">
+                    <div class="prod-row-name">
+                        <label>Producto:</label>
+                        <input type="text" class="stringing-name"
+                               value="{{ parts[0] if parts|length > 0 else '' }}">
+                    </div>
+                    <div class="prod-row-qty">
+                        <label>Cantidad: <span style="color:#e53e3e">*</span></label>
+                        <input type="text" inputmode="numeric" pattern="[0-9]*"
+                               class="stringing-qty"
+                               value="{{ parts[1] if parts|length > 1 else '' }}">
+                    </div>
+                    <button type="button" onclick="removeRow(this,'stringing')"
+                            class="btn-remove prod-row-remove" aria-label="Eliminar">×</button>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="stringing-row prod-row">
+                    <div class="prod-row-name">
+                        <label>Producto:</label>
+                        <input type="text" class="stringing-name" placeholder="Nombre del producto">
+                    </div>
+                    <div class="prod-row-qty">
+                        <label>Cantidad: <span style="color:#e53e3e">*</span></label>
+                        <input type="text" inputmode="numeric" pattern="[0-9]*"
+                               class="stringing-qty" placeholder="0">
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+        <button type="button" onclick="addRow('stringing')" class="btn btn-success btn-add-row">
+            + Agregar producto
+        </button>
+        <input type="hidden" id="stringing_products" name="stringing_products" value="">
+    </div>
+
+    {# ── Pegado ── #}
+    <div class="section-card">
+        <h3>Pegado</h3>
+        <div id="gluing_rows">
+            {% if report.pegado %}
+                {% for item in report.pegado.split(', ') %}
+                {% set parts = item.split(': ') %}
+                <div class="gluing-row prod-row">
+                    <div class="prod-row-name">
+                        <label>Producto:</label>
+                        <input type="text" class="gluing-name"
+                               value="{{ parts[0] if parts|length > 0 else '' }}">
+                    </div>
+                    <div class="prod-row-qty">
+                        <label>Cantidad: <span style="color:#e53e3e">*</span></label>
+                        <input type="text" inputmode="numeric" pattern="[0-9]*"
+                               class="gluing-qty"
+                               value="{{ parts[1] if parts|length > 1 else '' }}">
+                    </div>
+                    <button type="button" onclick="removeRow(this,'gluing')"
+                            class="btn-remove prod-row-remove" aria-label="Eliminar">×</button>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="gluing-row prod-row">
+                    <div class="prod-row-name">
+                        <label>Producto:</label>
+                        <input type="text" class="gluing-name" placeholder="Nombre del producto">
+                    </div>
+                    <div class="prod-row-qty">
+                        <label>Cantidad: <span style="color:#e53e3e">*</span></label>
+                        <input type="text" inputmode="numeric" pattern="[0-9]*"
+                               class="gluing-qty" placeholder="0">
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+        <button type="button" onclick="addRow('gluing')" class="btn btn-success btn-add-row">
+            + Agregar producto
+        </button>
+        <input type="hidden" id="gluing_products" name="gluing_products" value="">
+    </div>
+
+    {# ── Entregas ── #}
+    {% include 'reports/partials/production/deliveries.html' %}
+
+    {# ── Notas ── #}
+    <div class="section-card">
+        <h3>{{ get_text('additional_notes') }}</h3>
+        <div class="form-group">
+            <textarea name="additional_notes" rows="3"
+                      style="width:100%; border:1px solid #cbd5e0; border-radius:6px; padding:8px;">{{ report.notas }}</textarea>
+        </div>
+    </div>
+
+    <div style="margin-top:28px; display:flex; gap:12px;">
+        <button type="submit" class="btn btn-primary">💾 Guardar Cambios</button>
+        <a href="{{ url_for('panel.production_view', date=report.fecha) }}"
+           class="btn btn-secondary">Cancelar</a>
+    </div>
+
+</form>
+</div>
+
+{# Reutilizar el JS del formulario de producción #}
+{% include 'reports/partials/production/scripts.html' %}
+
+<script>
+// Pre-llenar deliveries desde el reporte existente
+document.addEventListener('DOMContentLoaded', function () {
+    const raw = {{ report.entregas | tojson }};
+    if (raw) {
+        // Parsear "Cliente - Producto, Cliente2 - Producto2"
+        const container = document.getElementById('delivery_rows');
+        container.innerHTML = '';
+        raw.split(', ').forEach(entry => {
+            const parts = entry.split(' - ');
+            const customer = parts[0] || '';
+            const desc     = parts.slice(1).join(' - ') || '';
+            const row = document.createElement('div');
+            row.className = 'delivery-row prod-row prod-row--delivery';
+            row.innerHTML = `
+                <div class="prod-row-name">
+                    <label>Cliente:</label>
+                    <input type="text" class="delivery-customer" value="${customer}">
+                </div>
+                <div class="prod-row-desc">
+                    <label>Descripción:</label>
+                    <input type="text" class="delivery-desc" value="${desc}">
+                </div>
+                <button type="button" onclick="removeDeliveryRow(this)"
+                        class="btn-remove prod-row-remove" aria-label="Eliminar">×</button>`;
+            container.appendChild(row);
+        });
+    }
+});
+</script>
+{% endblock %}

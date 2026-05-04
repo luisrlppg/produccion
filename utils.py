@@ -111,16 +111,17 @@ def _format_deliveries(data):
 
 
 def save_production_details_json(report_id, name, job_shift, date, workers,
-                                  timestamp, assembly_data, stringing_data, gluing_data):
-    """Guarda el detalle de productos en production_details.json (se mantiene en JSON)."""
+                                  timestamp, assembly_data, stringing_data, gluing_data,
+                                  update_existing: bool = False):
+    """Guarda o actualiza el detalle de productos en production_details.json."""
     os.makedirs('data', exist_ok=True)
     json_file = 'data/production_details.json'
     detail = {
-        'id_reporte':          report_id,
-        'nombre':              name,
-        'turno':               get_text(job_shift),
-        'fecha':               date,
-        'trabajadores':        workers,
+        'id_reporte':            report_id,
+        'nombre':                name,
+        'turno':                 get_text(job_shift),
+        'fecha':                 date,
+        'trabajadores':          workers,
         'fecha_y_hora_de_envio': timestamp,
         'ensamble':  [{'producto': p[0], 'cantidad': p[1]} for p in assembly_data],
         'ensartado': [{'producto': p[0], 'cantidad': p[1]} for p in stringing_data],
@@ -131,7 +132,20 @@ def save_production_details_json(report_id, name, job_shift, date, workers,
             records = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         records = []
-    records.append(detail)
+
+    if update_existing:
+        # Reemplazar el registro existente si lo hay
+        replaced = False
+        for i, r in enumerate(records):
+            if str(r.get('id_reporte')) == str(report_id):
+                records[i] = detail
+                replaced = True
+                break
+        if not replaced:
+            records.append(detail)
+    else:
+        records.append(detail)
+
     with open(json_file, 'w', encoding='utf-8') as f:
         json.dump(records, f, ensure_ascii=False, indent=2)
 
