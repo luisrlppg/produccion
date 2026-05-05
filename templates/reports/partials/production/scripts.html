@@ -69,6 +69,42 @@ function validateRequiredFields() {
         });
     });
 
+    // Validar máquinas: si se rellena cualquier campo, los otros dos son obligatorios
+    [1, 2, 3].forEach(i => {
+        const qtyEl   = document.getElementById(`machine${i}_quantity`);
+        const typeEl  = document.getElementById(`machine${i}_brush_type`);
+        const colorEl = document.getElementById(`machine${i}_color`);
+        if (!qtyEl || !typeEl || !colorEl) return;
+
+        const hasQty   = qtyEl.value.trim() !== '' && parseInt(qtyEl.value.trim()) > 0;
+        const hasType  = typeEl.value !== '';
+        const hasColor = colorEl.value !== '';
+        const anyFilled = hasQty || hasType || hasColor;
+
+        // Resetear
+        qtyEl.style.borderColor   = '#cbd5e0';
+        typeEl.style.borderColor  = '#cbd5e0';
+        colorEl.style.borderColor = '#cbd5e0';
+
+        if (anyFilled) {
+            if (!hasQty) {
+                qtyEl.style.borderColor = '#e53e3e';
+                errors.push(`Máquina ${i}: falta la cantidad`);
+                isValid = false;
+            }
+            if (!hasType) {
+                typeEl.style.borderColor = '#e53e3e';
+                errors.push(`Máquina ${i}: falta el tipo de cepillo`);
+                isValid = false;
+            }
+            if (!hasColor) {
+                colorEl.style.borderColor = '#e53e3e';
+                errors.push(`Máquina ${i}: falta el color`);
+                isValid = false;
+            }
+        }
+    });
+
     if (!isValid) alert('Por favor corrige los siguientes errores:\n\n' + errors.join('\n'));
     return isValid;
 }
@@ -91,7 +127,49 @@ document.addEventListener('DOMContentLoaded', function () {
             _bindRowValidation(row, prefix);
         });
     });
+
+    // Bind validación en tiempo real a los campos de máquinas
+    [1, 2, 3].forEach(i => {
+        const fields = [
+            document.getElementById(`machine${i}_quantity`),
+            document.getElementById(`machine${i}_brush_type`),
+            document.getElementById(`machine${i}_color`),
+        ];
+        fields.forEach(el => {
+            if (!el) return;
+            el.addEventListener('change', () => _checkMachine(i));
+            el.addEventListener('input',  () => _checkMachine(i));
+        });
+    });
 });
+
+// Feedback visual en tiempo real para máquinas
+function _checkMachine(i) {
+    const qtyEl   = document.getElementById(`machine${i}_quantity`);
+    const typeEl  = document.getElementById(`machine${i}_brush_type`);
+    const colorEl = document.getElementById(`machine${i}_color`);
+    if (!qtyEl || !typeEl || !colorEl) return;
+
+    const hasQty   = qtyEl.value.trim() !== '' && parseInt(qtyEl.value.trim()) > 0;
+    const hasType  = typeEl.value !== '';
+    const hasColor = colorEl.value !== '';
+    const anyFilled = hasQty || hasType || hasColor;
+    const allFilled = hasQty && hasType && hasColor;
+
+    if (!anyFilled) {
+        qtyEl.style.borderColor   = '#cbd5e0';
+        typeEl.style.borderColor  = '#cbd5e0';
+        colorEl.style.borderColor = '#cbd5e0';
+    } else if (allFilled) {
+        qtyEl.style.borderColor   = '#48bb78';
+        typeEl.style.borderColor  = '#48bb78';
+        colorEl.style.borderColor = '#48bb78';
+    } else {
+        qtyEl.style.borderColor   = hasQty   ? '#48bb78' : '#e53e3e';
+        typeEl.style.borderColor  = hasType  ? '#48bb78' : '#e53e3e';
+        colorEl.style.borderColor = hasColor ? '#48bb78' : '#e53e3e';
+    }
+}
 
 // Feedback visual en tiempo real para una fila de producto
 function _bindRowValidation(row, prefix) {

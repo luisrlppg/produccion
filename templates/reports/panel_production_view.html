@@ -1,7 +1,14 @@
 {% extends "base.html" %}
 
 {% block content %}
-<h2>Vista de Reportes de Produccion</h2>
+<div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap;
+            gap:12px; margin-bottom:24px;">
+    <h2 style="margin:0;">Vista de Reportes de Producción</h2>
+    <a href="{{ url_for('panel.download_report_csv', report_type='production') }}"
+       class="btn btn-warning">
+        ⬇️ Descargar CSV
+    </a>
+</div>
 
 <div class="card" style="margin-bottom: 30px;">
     <div class="card-header">
@@ -185,8 +192,8 @@
                                 <div class="total-card__label">Producción Personal</div>
                             </div>
                             <div class="total-card total-card--purple">
-                                <div class="total-card__value">{{ report.csv['Produccion por Trabajador'] }}</div>
-                                <div class="total-card__label">Promedio por Persona</div>
+                                <div class="total-card__value">{{ report.csv['Produccion por Persona por Hora'] }}</div>
+                                <div class="total-card__label">Uds/persona/hora</div>
                             </div>
                         </div>
                     </div>

@@ -278,21 +278,31 @@ class NotificationManager:
         base_url  = os.getenv('APP_BASE_URL', '').rstrip('/')
         stock_url = f'{base_url}/signage' if base_url else None
 
-        # Cuántos más hay en bajo stock además del/los nuevos
         others = (total_low_count or len(new_products)) - len(new_products)
+        long_lead_count = sum(1 for p in new_products if p.get('is_long_lead'))
 
         # ── Texto plano (WhatsApp) ─────────────────────────────────────────
         if len(new_products) == 1:
-            p = new_products[0]
+            p    = new_products[0]
+            ll   = p.get('is_long_lead', False)
+            name = f'{p["name"]} — {p["variant"]}' if p.get('variant') else p['name']
             text = (
-                f'🚨 STOCK BAJO — {p["name"]}\n'
-                f'📦 Actual: {p["qty_available"]:.0f}  |  Mín: {p["reordering_min_qty"]:.0f}'
-                f'  |  Dif: {p["difference"]:.0f}\n'
+                f'{"🔴" if ll else "🟠"} STOCK BAJO{"  ⚠️ LONG LEAD ITEM" if ll else ""} — {name}\n'
+                f'📦 Actual: {p["qty_available"]:.0f}'
+                f'  |  Mín: {p["reordering_min_qty"]:.0f}'
+                f'  |  Máx: {p["reordering_max_qty"]:.0f}\n'
             )
         else:
-            text = f'🚨 STOCK BAJO — {len(new_products)} productos nuevos\n'
+            long_lead_count = sum(1 for p in new_products if p.get('is_long_lead'))
+            text = f'🚨 STOCK BAJO — {len(new_products)} productos nuevos'
+            if long_lead_count:
+                text += f' ({long_lead_count} Long Lead)'
+            text += '\n'
             for p in new_products:
-                text += f'• {p["name"]}: {p["qty_available"]:.0f} / {p["reordering_min_qty"]:.0f}\n'
+                ll    = p.get('is_long_lead', False)
+                emoji = '🔴' if ll else '🟠'
+                name  = f'{p["name"]} — {p["variant"]}' if p.get('variant') else p['name']
+                text += f'{emoji} {name}{"  ⚠️" if ll else ""}: {p["qty_available"]:.0f} / mín {p["reordering_min_qty"]:.0f} / máx {p["reordering_max_qty"]:.0f}\n'
 
         if others > 0:
             text += f'\n+{others} producto(s) más en bajo stock.'
@@ -301,20 +311,29 @@ class NotificationManager:
 
         # ── Telegram HTML ──────────────────────────────────────────────────
         if len(new_products) == 1:
-            p = new_products[0]
-            emoji = '🔴' if p['difference'] < -10 else ('🟡' if p['difference'] < -5 else '🟠')
+            p     = new_products[0]
+            ll    = p.get('is_long_lead', False)
+            emoji = '🔴' if ll else '🟠'
+            name  = f'{p["name"]} — {p["variant"]}' if p.get('variant') else p['name']
             telegram = (
-                f'{emoji} <b>Stock bajo: {p["name"]}</b>\n'
-                f'📦 <code>{p["qty_available"]:.0f}</code> / mín <code>{p["reordering_min_qty"]:.0f}</code>'
-                f'  ⚠️ <code>{p["difference"]:.0f}</code>'
+                f'{emoji} <b>Stock bajo: {name}</b>'
+                f'{" — <i>Long Lead Item</i>" if ll else ""}\n'
+                f'📦 <code>{p["qty_available"]:.0f}</code>'
+                f' / mín <code>{p["reordering_min_qty"]:.0f}</code>'
+                f' / máx <code>{p["reordering_max_qty"]:.0f}</code>'
             )
         else:
             telegram = f'🚨 <b>{len(new_products)} productos en stock bajo</b>\n'
             for p in new_products:
-                emoji = '🔴' if p['difference'] < -10 else ('🟡' if p['difference'] < -5 else '🟠')
+                ll    = p.get('is_long_lead', False)
+                emoji = '🔴' if ll else '🟠'
+                name  = f'{p["name"]} — {p["variant"]}' if p.get('variant') else p['name']
                 telegram += (
-                    f'{emoji} <b>{p["name"]}</b>: '
-                    f'<code>{p["qty_available"]:.0f}</code> / <code>{p["reordering_min_qty"]:.0f}</code>\n'
+                    f'{emoji} <b>{name}</b>'
+                    f'{" ⚠️" if ll else ""}: '
+                    f'<code>{p["qty_available"]:.0f}</code>'
+                    f' / mín <code>{p["reordering_min_qty"]:.0f}</code>'
+                    f' / máx <code>{p["reordering_max_qty"]:.0f}</code>\n'
                 )
 
         if others > 0:
@@ -325,19 +344,16 @@ class NotificationManager:
         # ── Email HTML ─────────────────────────────────────────────────────
         rows = ''
         for p in new_products:
-            if p['difference'] < -10:
-                status, color = 'Crítico', '#d32f2f'
-            elif p['difference'] < -5:
-                status, color = 'Urgente', '#ff9800'
-            else:
-                status, color = 'Bajo', '#2196f3'
+            is_ll   = p.get('is_long_lead', False)
+            variant = f'<br><small style="color:#718096">{p["variant"]}</small>' if p.get('variant') else ''
+            ll_tag  = '<br><small style="color:#d32f2f;font-weight:600">⚠️ Long Lead Item</small>' if is_ll else ''
+            bg      = '#fff5f5' if is_ll else '#ebf8ff'
             rows += f"""
-                <tr>
-                    <td style="padding:8px">{p['name']}</td>
+                <tr style="background:{bg}">
+                    <td style="padding:8px">{p['name']}{variant}{ll_tag}</td>
                     <td style="padding:8px;text-align:center">{p['qty_available']:.2f}</td>
                     <td style="padding:8px;text-align:center">{p['reordering_min_qty']:.2f}</td>
-                    <td style="padding:8px;text-align:center;color:#d32f2f"><strong>{p['difference']:.2f}</strong></td>
-                    <td style="padding:8px;text-align:center;color:{color}"><strong>{status}</strong></td>
+                    <td style="padding:8px;text-align:center">{p['reordering_max_qty']:.2f}</td>
                 </tr>"""
 
         others_note = ''
@@ -349,7 +365,10 @@ class NotificationManager:
             link_note = f'<p><a href="{stock_url}" style="color:#667eea">🔗 Ver todos los productos en bajo stock</a></p>'
 
         html = f"""<html><body>
-            <h2 style="color:#d32f2f">🚨 Nuevo producto en stock bajo</h2>
+            <h2 style="color:{'#d32f2f' if long_lead_count else '#ff9800'}">
+                {'🔴 Stock Bajo — Long Lead Items' if long_lead_count else '🟠 Nuevo producto en stock bajo'}
+            </h2>
+            {'<p style="background:#fff5f5;padding:8px 12px;border-left:4px solid #d32f2f;border-radius:4px;color:#c62828"><strong>⚠️ ' + str(long_lead_count) + ' producto(s) con etiqueta Long Lead Item requieren atención prioritaria.</strong></p>' if long_lead_count else ''}
             <p><strong>Fecha:</strong> {timestamp}</p>
             <table border="1" style="border-collapse:collapse;width:100%">
                 <thead style="background:#f5f5f5">
@@ -357,8 +376,7 @@ class NotificationManager:
                         <th style="padding:10px;text-align:left">Producto</th>
                         <th style="padding:10px">Stock Actual</th>
                         <th style="padding:10px">Stock Mínimo</th>
-                        <th style="padding:10px">Diferencia</th>
-                        <th style="padding:10px">Estado</th>
+                        <th style="padding:10px">Stock Máximo</th>
                     </tr>
                 </thead>
                 <tbody>{rows}</tbody>

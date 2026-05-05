@@ -18,6 +18,12 @@ from utils import (get_text, read_production_details_json,
 
 admin_bp = Blueprint('panel', __name__)
 
+# Horas por turno (mismo mapa que production.py)
+_SHIFT_HOURS = {'Matutino': 8.0, 'Vespertino': 7.5, 'Nocturno': 8.0}
+
+def _shift_hours_for_shift(turno: str) -> float:
+    return _SHIFT_HOURS.get(turno, 8.0)
+
 
 # ── Vistas ─────────────────────────────────────────────────────────────────────
 
@@ -79,9 +85,9 @@ def production_stats():
     total_workers_sum = sum(_int(r['trabajadores'])         for r in reports)
     avg_workers       = round(total_workers_sum / total_reports, 1) if total_reports else 0
 
-    efficiencies = [_float(r['produccion_por_trabajador']) for r in reports
-                    if _float(r['produccion_por_trabajador']) > 0]
-    avg_efficiency  = round(sum(efficiencies) / len(efficiencies), 1) if efficiencies else 0
+    efficiencies = [_float(r['produccion_por_persona_hora']) for r in reports
+                    if _float(r['produccion_por_persona_hora']) > 0]
+    avg_efficiency  = round(sum(efficiencies) / len(efficiencies), 2) if efficiencies else 0
     best_efficiency = max(efficiencies) if efficiencies else 0
 
     by_date = defaultdict(lambda: {'total': 0, 'machines': 0, 'workers': 0, 'reports': 0})
@@ -99,7 +105,7 @@ def production_stats():
     chart_production = [by_date[d]['total']   for d in chart_dates]
     chart_workers    = [by_date[d]['workers'] for d in chart_dates]
     chart_efficiency = [
-        round(by_date[d]['total'] / by_date[d]['workers'], 1)
+        round(by_date[d]['total'] / (by_date[d]['workers'] * 8.0), 2)
         if by_date[d]['workers'] else 0
         for d in chart_dates
     ]
@@ -118,20 +124,22 @@ def production_stats():
         if s in by_shift:
             d = by_shift[s]
             shifts_data.append({
-                'name':           s,
-                'total':          d['total'],
-                'machines':       d['machines'],
-                'reports':        d['reports'],
-                'avg_per_worker': round(d['total'] / d['workers'], 1) if d['workers'] else 0,
+                'name':              s,
+                'total':             d['total'],
+                'machines':          d['machines'],
+                'reports':           d['reports'],
+                'avg_per_hour': round(d['total'] / (d['workers'] * _shift_hours_for_shift(s)), 2)
+                                if d['workers'] else 0,
             })
     for s, d in by_shift.items():
         if s not in shift_order:
             shifts_data.append({
-                'name':           s,
-                'total':          d['total'],
-                'machines':       d['machines'],
-                'reports':        d['reports'],
-                'avg_per_worker': round(d['total'] / d['workers'], 1) if d['workers'] else 0,
+                'name':              s,
+                'total':             d['total'],
+                'machines':          d['machines'],
+                'reports':           d['reports'],
+                'avg_per_hour': round(d['total'] / (d['workers'] * _shift_hours_for_shift(s)), 2)
+                                if d['workers'] else 0,
             })
 
     shifts_names  = [s['name']  for s in shifts_data]
@@ -280,10 +288,12 @@ def edit_report(report_id):
             total_machines = sum(int(m[1]) for m in machine_data)
         except (ValueError, IndexError):
             total_machines = 0
+        from blueprints.reports.routes.production import _shift_hours
+        hours = _shift_hours(job_shift)
         try:
-            production_per_worker = round(total_production / quantity_persons, 2)
+            production_per_person_hour = round(total_production / (quantity_persons * hours), 2)
         except ZeroDivisionError:
-            production_per_worker = 0
+            production_per_person_hour = 0
 
         machines = {str(m[0]): m for m in machine_data}
         def mf(num):
@@ -308,7 +318,7 @@ def edit_report(report_id):
             produccion_personal=total_production,
             produccion_maquinas=total_machines,
             produccion_total=total_production + total_machines,
-            produccion_por_trabajador=production_per_worker,
+            produccion_por_persona_hora=production_per_person_hour,
             notas=additional_notes,
         )
 
@@ -430,7 +440,7 @@ def _db_row_to_csv_dict(r: dict) -> dict:
         'Produccion Personal':      r['produccion_personal'],
         'Produccion Maquinas':      r['produccion_maquinas'],
         'Produccion Total':         r['produccion_total'],
-        'Produccion por Trabajador': r['produccion_por_trabajador'],
+        'Produccion por Persona por Hora': r['produccion_por_persona_hora'],
         'Notas Adicionales':        r['notas'],
         'Fecha y Hora de Envio':    r['timestamp'],
     }

@@ -11,7 +11,18 @@ from utils import (get_text, _format_products, _format_deliveries,
                    save_production_details_json,
                    build_production_email_body)
 
+# Horas por turno
+SHIFT_HOURS = {
+    'morning':   8.0,
+    'afternoon': 7.5,
+    'night':     8.0,
+}
+
 production_bp = Blueprint('production', __name__)
+
+
+def _shift_hours(job_shift: str) -> float:
+    return SHIFT_HOURS.get(job_shift, 8.0)
 
 
 @production_bp.route('/report/production')
@@ -97,10 +108,12 @@ def submit_report():
         total_machines = sum(int(m[1]) for m in machine_data)
     except (ValueError, IndexError):
         total_machines = 0
+
+    hours = _shift_hours(job_shift)
     try:
-        production_per_worker = round(total_production / quantity_persons, 2)
+        production_per_person_hour = round(total_production / (quantity_persons * hours), 2)
     except ZeroDivisionError:
-        production_per_worker = 0
+        production_per_person_hour = 0
 
     # Máquinas como campos individuales
     machines = {str(m[0]): m for m in machine_data}
@@ -126,7 +139,7 @@ def submit_report():
         produccion_personal=total_production,
         produccion_maquinas=total_machines,
         produccion_total=total_production + total_machines,
-        produccion_por_trabajador=production_per_worker,
+        produccion_por_persona_hora=production_per_person_hour,
         notas=additional_notes,
         timestamp=timestamp,
     )
@@ -151,7 +164,7 @@ def submit_report():
         email_body = build_production_email_body(
             report_id, name, job_shift, date, quantity_persons,
             machine_data, assembly_data, stringing_data, gluing_data, delivery_data,
-            total_production, total_machines, production_per_worker, additional_notes, timestamp,
+            total_production, total_machines, production_per_person_hour, additional_notes, timestamp,
             report_url=report_url,
         )
         nm.broadcast(

@@ -34,7 +34,7 @@
     </div>
     <div class="kpi-card kpi-purple">
         <div class="kpi-value">{{ stats.avg_efficiency }}</div>
-        <div class="kpi-label">Promedio uds/trabajador</div>
+        <div class="kpi-label">Promedio uds/persona/hora</div>
     </div>
 </div>
 
@@ -95,7 +95,7 @@
                     <th style="text-align:right;">Máquinas</th>
                     <th style="text-align:right;">Total</th>
                     <th style="text-align:right;">Reportes</th>
-                    <th style="text-align:right;">Uds/trabajador</th>
+                    <th style="text-align:right;">Uds/persona/hora</th>
                 </tr>
             </thead>
             <tbody>
@@ -112,7 +112,7 @@
                     <td style="text-align:right; color:#c05621;">{{ "{:,}".format(s.machines) }}</td>
                     <td style="text-align:right; font-weight:700;">{{ "{:,}".format(s.total + s.machines) }}</td>
                     <td style="text-align:right;">{{ s.reports }}</td>
-                    <td style="text-align:right;">{{ s.avg_per_worker }}</td>
+                    <td style="text-align:right;">{{ s.avg_per_hour }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -221,7 +221,7 @@
                     <th style="text-align:right;">Personal</th>
                     <th style="text-align:right;">Máquinas</th>
                     <th style="text-align:right;">Total</th>
-                    <th style="text-align:right;">Uds/trabajador</th>
+                    <th style="text-align:right;">Uds/persona/hora</th>
                     <th></th>
                 </tr>
             </thead>
@@ -237,7 +237,7 @@
                     <td style="text-align:right; color:#276749;">{{ "{:,}".format(personal) }}</td>
                     <td style="text-align:right; color:#c05621;">{{ "{:,}".format(maquinas) }}</td>
                     <td style="text-align:right; font-weight:700;">{{ "{:,}".format(personal + maquinas) }}</td>
-                    <td style="text-align:right;">{{ r['Produccion por Trabajador'] }}</td>
+                    <td style="text-align:right;">{{ r.get('Produccion por Persona por Hora', 0) }}</td>
                     <td>
                         <a href="{{ url_for('panel.production_view') }}?date={{ r['Fecha'] }}"
                            class="btn btn-info" style="padding:4px 10px; font-size:.8rem;">Ver</a>

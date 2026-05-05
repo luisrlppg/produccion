@@ -107,7 +107,7 @@ def insert_production_report(
     maquina3_cantidad, maquina3_tipo, maquina3_color,
     ensamble, ensartado, pegado, entregas,
     produccion_personal, produccion_maquinas, produccion_total,
-    produccion_por_trabajador, notas, timestamp,
+    produccion_por_persona_hora, notas, timestamp,
 ) -> int:
     """Inserta un reporte de producción y retorna el ID generado."""
     with get_db() as db:
@@ -119,7 +119,7 @@ def insert_production_report(
                 maquina3_cantidad, maquina3_tipo, maquina3_color,
                 ensamble, ensartado, pegado, entregas,
                 produccion_personal, produccion_maquinas, produccion_total,
-                produccion_por_trabajador, notas, timestamp
+                produccion_por_persona_hora, notas, timestamp
             ) VALUES (
                 ?,?,?,?,
                 ?,?,?,
@@ -136,7 +136,7 @@ def insert_production_report(
             maquina3_cantidad, maquina3_tipo, maquina3_color,
             ensamble, ensartado, pegado, entregas,
             produccion_personal, produccion_maquinas, produccion_total,
-            produccion_por_trabajador, notas, timestamp,
+            produccion_por_persona_hora, notas, timestamp,
         ))
         return cur.lastrowid
 
@@ -261,7 +261,7 @@ PRODUCTION_CSV_HEADER = [
     'Maquina 3 Cantidad', 'Maquina 3 Tipo de Cepillo', 'Maquina 3 Color',
     'Ensamble', 'Ensartado', 'Pegado', 'Entregas',
     'Produccion Personal', 'Produccion Maquinas', 'Produccion Total',
-    'Produccion por Trabajador', 'Notas Adicionales', 'Fecha y Hora de Envio',
+    'Produccion por Persona por Hora', 'Notas Adicionales', 'Fecha y Hora de Envio',
 ]
 
 SIMPLE_CSV_HEADER = [
@@ -284,7 +284,7 @@ def export_production_csv() -> str:
             r['maquina3_cantidad'], r['maquina3_tipo'], r['maquina3_color'],
             r['ensamble'], r['ensartado'], r['pegado'], r['entregas'],
             r['produccion_personal'], r['produccion_maquinas'], r['produccion_total'],
-            r['produccion_por_trabajador'], r['notas'], r['timestamp'],
+            r['produccion_por_persona_hora'], r['notas'], r['timestamp'],
         ])
     return buf.getvalue()
 

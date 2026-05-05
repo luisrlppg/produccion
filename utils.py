@@ -85,7 +85,7 @@ PRODUCTION_CSV_HEADER = [
     'Maquina 3 Cantidad', 'Maquina 3 Tipo de Cepillo', 'Maquina 3 Color',
     'Ensamble', 'Ensartado', 'Pegado', 'Entregas',
     'Produccion Personal', 'Produccion Maquinas', 'Produccion Total',
-    'Produccion por Trabajador',
+    'Produccion por Persona por Hora',
     'Notas Adicionales', 'Fecha y Hora de Envio',
 ]
 
@@ -210,7 +210,7 @@ def build_simple_message(report_id, report_type: str, item_name: str,
 def build_production_email_body(report_id, name, job_shift, date, workers,
                                  machine_data, assembly_data, stringing_data,
                                  gluing_data, delivery_data,
-                                 total_production, total_machines, production_per_worker,
+                                 total_production, total_machines, production_per_person_hour,
                                  additional_notes, timestamp,
                                  report_url: str | None = None) -> str:
 
@@ -251,7 +251,7 @@ def build_production_email_body(report_id, name, job_shift, date, workers,
             {kpi('Total', f'{total_combined:,}', '#2b6cb0')}
             {kpi('Personal', f'{total_production:,}', '#276749')}
             {kpi('Máquinas', f'{total_machines:,}', '#c05621')}
-            {kpi('Uds/persona', production_per_worker, '#553c9a')}
+            {kpi('Uds/persona/hora', production_per_person_hour, '#553c9a')}
         </tr>
     </table>"""
 

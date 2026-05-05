@@ -66,8 +66,8 @@ def get_reordering_rules(models, uid):
 def get_products_stock(models, uid, product_ids):
     return _read(
         models, uid, 'product.product', product_ids,
-        ['name', 'qty_available', 'virtual_available',
-         'product_template_attribute_value_ids', 'product_tmpl_id'],
+        ['display_name', 'qty_available',
+         'product_tmpl_id', 'product_tag_ids'],
     )
 
 
@@ -196,42 +196,55 @@ def get_low_stock_products(models, uid):
     reorder_map = {}
     for rule in rules:
         pid = rule['product_id'][0]
-        reorder_map.setdefault(pid, []).append(rule['product_min_qty'])
+        reorder_map.setdefault(pid, {'min': [], 'max': []})
+        reorder_map[pid]['min'].append(rule['product_min_qty'])
+        reorder_map[pid]['max'].append(rule['product_max_qty'])
 
     products = get_products_stock(models, uid, list(reorder_map.keys()))
 
-    # Batch: recolectar todos los IDs de atributos de variante de una vez
-    all_attr_ids = []
+    # display_name ya incluye la variante (ej. "Cepillo Recto (Rojo)")
+    # product_tmpl_id[1] es el nombre base del template sin variante
+    all_tag_ids = []
     for p in products:
-        all_attr_ids.extend(p.get('product_template_attribute_value_ids') or [])
+        all_tag_ids.extend(p.get('product_tag_ids') or [])
 
-    attr_name_map = {}
-    if all_attr_ids:
-        records = models.execute_kw(
+    # Batch: leer nombres de tags en una sola llamada
+    long_lead_ids = set()
+    if all_tag_ids:
+        tag_records = models.execute_kw(
             ODOO_DB, uid, ODOO_PASSWORD,
-            'product.template.attribute.value', 'read',
-            [list(set(all_attr_ids))],
+            'product.tag', 'read',
+            [list(set(all_tag_ids))],
             {'fields': ['name']},
         )
-        attr_name_map = {r['id']: r['name'] for r in records}
+        long_lead_ids = {
+            r['id'] for r in tag_records
+            if 'long lead' in r['name'].lower()
+        }
 
     low = []
     for p in products:
         pid     = p['id']
-        min_qty = min(reorder_map[pid])
+        min_qty = min(reorder_map[pid]['min'])
+        max_qty = max(reorder_map[pid]['max'])
         current = p['qty_available']
         if current < min_qty:
-            attr_ids  = p.get('product_template_attribute_value_ids') or []
-            variant   = ' / '.join(attr_name_map[i] for i in attr_ids if i in attr_name_map)
             tmpl      = p.get('product_tmpl_id')
-            base_name = tmpl[1] if isinstance(tmpl, (list, tuple)) and len(tmpl) > 1 else p['name']
+            base_name = tmpl[1] if isinstance(tmpl, (list, tuple)) and len(tmpl) > 1 else p['display_name']
+            full_name = p['display_name']
+            # Extraer variante: todo lo que está entre paréntesis en display_name
+            variant = ''
+            if '(' in full_name and full_name.endswith(')'):
+                raw_variant = full_name[full_name.index('(')+1:-1]
+                variant = ' | '.join(v.strip() for v in raw_variant.split(','))
             low.append({
                 'id':                 pid,
                 'name':               base_name,
                 'variant':            variant,
                 'qty_available':      current,
-                'virtual_available':  p['virtual_available'],
                 'reordering_min_qty': min_qty,
+                'reordering_max_qty': max_qty,
                 'difference':         current - min_qty,
+                'is_long_lead':       bool(set(p.get('product_tag_ids') or []) & long_lead_ids),
             })
     return low

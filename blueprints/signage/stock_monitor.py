@@ -91,12 +91,22 @@ class StockMonitor:
                 to_notify,
                 total_low_count=len(current_low),
             )
+
+            # Subject más informativo si hay Long Lead items
+            long_lead = [p for p in to_notify if p.get('is_long_lead')]
+            if long_lead:
+                subject = (
+                    f'🔴 Stock Bajo — Long Lead: {long_lead[0]["name"]}'
+                    if len(long_lead) == 1
+                    else f'🔴 Stock Bajo — {len(long_lead)} Long Lead Items'
+                )
+            elif len(to_notify) == 1:
+                subject = f'🟠 Stock Bajo: {to_notify[0]["name"]}'
+            else:
+                subject = f'🟠 Stock Bajo: {len(to_notify)} productos nuevos'
+
             sent = self.nm.broadcast(
-                subject=(
-                    f'🚨 Stock Bajo: {to_notify[0]["name"]}'
-                    if len(to_notify) == 1
-                    else f'🚨 Stock Bajo: {len(to_notify)} productos nuevos'
-                ),
+                subject=subject,
                 text=text,
                 html=html,
                 telegram_text=telegram,
