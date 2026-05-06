@@ -38,6 +38,7 @@ def legacy_redirect():
 @admin_bp.route('/reportes/vista')
 @login_required
 def production_view():
+    from blueprints.reports.production_sections import PRODUCTION_SECTIONS
     selected_date   = request.args.get('date', '')
     available_dates = get_production_dates()
     json_reports    = read_production_details_json()
@@ -53,12 +54,15 @@ def production_view():
 
     return render_template('reports/panel_production_view.html',
         reports=filtered, selected_date=selected_date,
-        available_dates=available_dates, get_text=get_text)
+        available_dates=available_dates,
+        production_sections=PRODUCTION_SECTIONS,
+        get_text=get_text)
 
 
 @admin_bp.route('/reportes/stats')
 @login_required
 def production_stats():
+    from blueprints.reports.production_sections import PRODUCTION_SECTIONS
     reports      = get_all_production_reports()
     json_reports = read_production_details_json()
 
@@ -186,6 +190,53 @@ def production_stats():
     brush_types  = sorted(brush_type_totals.items(),  key=lambda x: x[1], reverse=True)
     brush_colors = sorted(brush_color_totals.items(), key=lambda x: x[1], reverse=True)
 
+    # ── Estadísticas por sección (uds/persona/hora) ───────────────────────────
+    section_stats = []
+    for s in PRODUCTION_SECTIONS:
+        col   = s['total_col']
+        total = sum(_int(r.get(col, 0)) for r in reports)
+
+        # Promedio histórico
+        effics = []
+        for r in reports:
+            sec_total = _int(r.get(col, 0))
+            workers   = _int(r.get('trabajadores', 0))
+            turno     = r.get('turno', '')
+            hours     = _shift_hours_for_shift(turno)
+            if sec_total > 0 and workers > 0:
+                effics.append(round(sec_total / (workers * hours), 2))
+        avg_effic = round(sum(effics) / len(effics), 2) if effics else 0
+
+        # Datos para gráfica: por fecha, una línea por turno
+        # { fecha: { turno: uds/persona/hora } }
+        by_date_turno: dict = {}
+        for r in reports:
+            sec_total = _int(r.get(col, 0))
+            workers   = _int(r.get('trabajadores', 0))
+            fecha     = r.get('fecha', '')
+            turno     = r.get('turno', 'Desconocido')
+            hours     = _shift_hours_for_shift(turno)
+            if not fecha or workers == 0:
+                continue
+            val = round(sec_total / (workers * hours), 2)
+            by_date_turno.setdefault(fecha, {})[turno] = val
+
+        chart_dates_s = sorted(by_date_turno.keys())[-30:]
+        turnos_in_data = sorted({t for d in by_date_turno.values() for t in d})
+        chart_series = {
+            turno: [by_date_turno.get(d, {}).get(turno, None) for d in chart_dates_s]
+            for turno in turnos_in_data
+        }
+
+        section_stats.append({
+            'key':          s['key'],
+            'label':        s['label'],
+            'total':        total,
+            'avg_effic':    avg_effic,
+            'chart_dates':  chart_dates_s,
+            'chart_series': chart_series,  # {turno: [val|None, ...]}
+        })
+
     recent = sorted(reports, key=lambda x: x.get('timestamp', ''), reverse=True)[:5]
     # Convertir a formato compatible con el template
     recent_fmt = [_db_row_to_csv_dict(r) for r in recent]
@@ -217,6 +268,7 @@ def production_stats():
         'best_day':            best_day,
         'worst_day':           worst_day,
         'recent':              recent_fmt,
+        'section_stats':       section_stats,
     }
 
     return render_template('reports/panel_production_stats.html',
@@ -236,6 +288,7 @@ def edit_report(report_id):
     if request.method == 'POST':
         import json as _json
         from utils import get_text as _gt
+        from blueprints.reports.production_sections import PRODUCTION_SECTIONS
 
         name             = request.form['name'].strip()
         job_shift        = request.form['job_shift'].strip()
@@ -243,7 +296,6 @@ def edit_report(report_id):
         quantity_persons = int(request.form['quantity_persons'].strip())
         additional_notes = request.form.get('additional_notes', '').strip()
 
-        # Máquinas
         machine_data = []
         for i in range(1, 4):
             qty        = request.form.get(f'machine{i}_quantity', '').strip()
@@ -261,9 +313,10 @@ def edit_report(report_id):
             except (_json.JSONDecodeError, KeyError):
                 return []
 
-        assembly_data  = _parse_json_field('assembly_products')
-        stringing_data = _parse_json_field('stringing_products')
-        gluing_data    = _parse_json_field('gluing_products')
+        section_data = {
+            s['key']: _parse_json_field(f'{s["css_prefix"]}_products')
+            for s in PRODUCTION_SECTIONS
+        }
 
         delivery_data = []
         raw = request.form.get('deliveries', '')
@@ -283,11 +336,12 @@ def edit_report(report_id):
                     pass
             return total
 
-        total_production = _sum(assembly_data) + _sum(stringing_data) + _sum(gluing_data)
+        total_production = sum(_sum(section_data[s['key']]) for s in PRODUCTION_SECTIONS)
         try:
             total_machines = sum(int(m[1]) for m in machine_data)
         except (ValueError, IndexError):
             total_machines = 0
+
         from blueprints.reports.routes.production import _shift_hours
         hours = _shift_hours(job_shift)
         try:
@@ -299,7 +353,6 @@ def edit_report(report_id):
         def mf(num):
             m = machines.get(str(num))
             return (int(m[1]), _gt(m[2]), _gt(m[3])) if m else (0, '', '')
-
         m1, m2, m3 = mf(1), mf(2), mf(3)
 
         update_production_report(
@@ -311,9 +364,7 @@ def edit_report(report_id):
             maquina1_cantidad=m1[0], maquina1_tipo=m1[1], maquina1_color=m1[2],
             maquina2_cantidad=m2[0], maquina2_tipo=m2[1], maquina2_color=m2[2],
             maquina3_cantidad=m3[0], maquina3_tipo=m3[1], maquina3_color=m3[2],
-            ensamble=_format_products(assembly_data),
-            ensartado=_format_products(stringing_data),
-            pegado=_format_products(gluing_data),
+            **{s['key']: _format_products(section_data[s['key']]) for s in PRODUCTION_SECTIONS},
             entregas=_format_deliveries(delivery_data),
             produccion_personal=total_production,
             produccion_maquinas=total_machines,
@@ -322,10 +373,9 @@ def edit_report(report_id):
             notas=additional_notes,
         )
 
-        # Actualizar JSON de detalles
         save_production_details_json(
             report_id, name, job_shift, date, quantity_persons,
-            report['timestamp'], assembly_data, stringing_data, gluing_data,
+            report['timestamp'], section_data,
             update_existing=True,
         )
 
@@ -418,7 +468,8 @@ def download_report_csv(report_type):
 
 def _db_row_to_csv_dict(r: dict) -> dict:
     """Convierte una fila de la DB al formato de dict que espera el template."""
-    return {
+    from blueprints.reports.production_sections import PRODUCTION_SECTIONS
+    base = {
         'ID Reporte':               r['id'],
         'Nombre':                   r['nombre'],
         'Turno':                    r['turno'],
@@ -433,9 +484,10 @@ def _db_row_to_csv_dict(r: dict) -> dict:
         'Maquina 3 Cantidad':       r['maquina3_cantidad'],
         'Maquina 3 Tipo de Cepillo': r['maquina3_tipo'],
         'Maquina 3 Color':          r['maquina3_color'],
-        'Ensamble':                 r['ensamble'],
-        'Ensartado':                r['ensartado'],
-        'Pegado':                   r['pegado'],
+    }
+    for s in PRODUCTION_SECTIONS:
+        base[s['csv_label']] = r.get(s['key'], '')
+    base.update({
         'Entregas':                 r['entregas'],
         'Produccion Personal':      r['produccion_personal'],
         'Produccion Maquinas':      r['produccion_maquinas'],
@@ -443,4 +495,5 @@ def _db_row_to_csv_dict(r: dict) -> dict:
         'Produccion por Persona por Hora': r['produccion_por_persona_hora'],
         'Notas Adicionales':        r['notas'],
         'Fecha y Hora de Envio':    r['timestamp'],
-    }
+    })
+    return base

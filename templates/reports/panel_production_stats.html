@@ -159,6 +159,42 @@
 </div>
 {% endif %}
 
+{# ── Estadísticas por sección ──────────────────────────────────────────────── #}
+{% if stats.section_stats %}
+<div class="section-card">
+    <h3>Producción por Sección <span style="font-size:.8rem; font-weight:400; color:#718096;">(uds / persona / hora)</span></h3>
+
+    {# Cards de resumen #}
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px,1fr)); gap:16px; margin-bottom:28px;">
+        {% for s in stats.section_stats %}
+        <div style="background:#f7fafc; border-radius:10px; padding:16px; text-align:center; border:1px solid #e2e8f0;">
+            <div style="font-size:.75rem; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:#718096; margin-bottom:6px;">{{ s.label }}</div>
+            <div style="font-size:1.6rem; font-weight:800; color:#2b6cb0;">{{ "{:,}".format(s.total) }}</div>
+            <div style="font-size:.78rem; color:#4a5568; margin-top:4px;">uds totales</div>
+            <div style="margin-top:8px; padding-top:8px; border-top:1px solid #e2e8f0;">
+                <span style="font-size:1.1rem; font-weight:700; color:#276749;">{{ s.avg_effic }}</span>
+                <span style="font-size:.75rem; color:#718096;"> uds/persona/hora promedio</span>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    {# Gráficas por sección #}
+    {% for s in stats.section_stats %}
+    {% if s.chart_dates %}
+    <div style="margin-bottom:32px;">
+        <div style="font-weight:600; color:#4a5568; font-size:.9rem; margin-bottom:10px;">
+            {{ s.label }} — uds/persona/hora por turno
+        </div>
+        <div class="chart-wrap">
+            <canvas id="chartSection_{{ s.key }}"></canvas>
+        </div>
+    </div>
+    {% endif %}
+    {% endfor %}
+</div>
+{% endif %}
+
 {# ── Máquinas ──────────────────────────────────────────────────────────────── #}
 {% if stats.brush_types or stats.brush_colors %}
 <div class="stats-row-2">
@@ -420,6 +456,40 @@ makeChart('chartBrushColor', 'doughnut',
     {}
 );
 {% endif %}
+
+// Gráficas por sección
+const TURNO_COLORS = {
+    'Matutino':   '#f6ad55',
+    'Vespertino': '#667eea',
+    'Nocturno':   '#9f7aea',
+    'Desconocido':'#a0aec0',
+};
+{% for s in stats.section_stats %}
+{% if s.chart_dates %}
+(function() {
+    const dates  = {{ s.chart_dates | tojson }};
+    const series = {{ s.chart_series | tojson }};
+    const datasets = Object.entries(series).map(([turno, vals]) => ({
+        label: turno,
+        data:  vals,
+        borderColor:     TURNO_COLORS[turno] || '#667eea',
+        backgroundColor: (TURNO_COLORS[turno] || '#667eea') + '22',
+        borderWidth: 2,
+        pointRadius: 3,
+        tension: 0.3,
+        fill: false,
+        spanGaps: true,
+    }));
+    makeChart('chartSection_{{ s.key }}', 'line', dates, datasets, {
+        scales: {
+            y: { beginAtZero: true, ticks: { font: { size: 11 } },
+                 title: { display: true, text: 'uds/persona/hora', font: { size: 10 } } },
+            x: { ticks: { font: { size: 10 }, maxRotation: 45 } }
+        }
+    });
+})();
+{% endif %}
+{% endfor %}
 </script>
 {% endif %}{# /if stats scripts #}
 {% endblock %}

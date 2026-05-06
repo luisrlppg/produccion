@@ -113,8 +113,11 @@ def create_app() -> Flask:
     def report_form(report_type):
         if report_type not in ('personal', 'company', 'production'):
             return redirect(url_for('reportes'))
+        from blueprints.reports.production_sections import PRODUCTION_SECTIONS
         return render_template('reports/report_form.html',
-                               report_type=report_type, get_text=get_text)
+                               report_type=report_type,
+                               production_sections=PRODUCTION_SECTIONS,
+                               get_text=get_text)
 
     @app.route('/submit_report', methods=['POST'])
     @login_required

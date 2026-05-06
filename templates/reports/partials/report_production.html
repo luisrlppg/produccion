@@ -38,18 +38,12 @@
 {# Machines #}
 {% include 'reports/partials/production/machines.html' %}
 
-{# Dynamic product-row sections #}
-{% with section_title = get_text('assembly_production'), css_class = 'assembly', hidden_name = 'assembly_products' %}
+{# Dynamic product-row sections — driven by PRODUCTION_SECTIONS config #}
+{% for section in production_sections %}
+{% with section_title = section.label, css_class = section.css_prefix, hidden_name = section.css_prefix + '_products' %}
     {% include 'reports/partials/production/product_rows.html' %}
 {% endwith %}
-
-{% with section_title = 'Ensartado', css_class = 'stringing', hidden_name = 'stringing_products' %}
-    {% include 'reports/partials/production/product_rows.html' %}
-{% endwith %}
-
-{% with section_title = 'Pegado', css_class = 'gluing', hidden_name = 'gluing_products' %}
-    {% include 'reports/partials/production/product_rows.html' %}
-{% endwith %}
+{% endfor %}
 
 {# Deliveries #}
 {% include 'reports/partials/production/deliveries.html' %}

@@ -9,7 +9,8 @@ from notifications import NotificationManager
 from database import insert_production_report
 from utils import (get_text, _format_products, _format_deliveries,
                    save_production_details_json,
-                   build_production_email_body)
+                   build_production_email_body_from_db)
+from blueprints.reports.production_sections import PRODUCTION_SECTIONS
 
 # Horas por turno
 SHIFT_HOURS = {
@@ -28,7 +29,10 @@ def _shift_hours(job_shift: str) -> float:
 @production_bp.route('/report/production')
 @login_required
 def report_form():
-    return render_template('reports/report_form.html', report_type='production', get_text=get_text)
+    return render_template('reports/report_form.html',
+                           report_type='production',
+                           production_sections=PRODUCTION_SECTIONS,
+                           get_text=get_text)
 
 
 @production_bp.route('/submit_report/production', methods=['POST'])
@@ -80,9 +84,11 @@ def submit_report():
         except (json.JSONDecodeError, KeyError):
             return []
 
-    assembly_data  = _parse_json_field('assembly_products')
-    stringing_data = _parse_json_field('stringing_products')
-    gluing_data    = _parse_json_field('gluing_products')
+    # Parsear todas las secciones dinámicamente
+    section_data = {
+        s['key']: _parse_json_field(f'{s["css_prefix"]}_products')
+        for s in PRODUCTION_SECTIONS
+    }
 
     delivery_data = []
     raw = request.form.get('deliveries', '')
@@ -103,7 +109,9 @@ def submit_report():
                 pass
         return total
 
-    total_production = _sum(assembly_data) + _sum(stringing_data) + _sum(gluing_data)
+    total_production = sum(_sum(section_data[s['key']]) for s in PRODUCTION_SECTIONS)
+    # Totales individuales por sección para estadísticas
+    section_totals = {s['key']: _sum(section_data[s['key']]) for s in PRODUCTION_SECTIONS}
     try:
         total_machines = sum(int(m[1]) for m in machine_data)
     except (ValueError, IndexError):
@@ -132,9 +140,8 @@ def submit_report():
         maquina1_cantidad=m1[0], maquina1_tipo=m1[1], maquina1_color=m1[2],
         maquina2_cantidad=m2[0], maquina2_tipo=m2[1], maquina2_color=m2[2],
         maquina3_cantidad=m3[0], maquina3_tipo=m3[1], maquina3_color=m3[2],
-        ensamble=_format_products(assembly_data),
-        ensartado=_format_products(stringing_data),
-        pegado=_format_products(gluing_data),
+        section_data={s['key']: _format_products(section_data[s['key']]) for s in PRODUCTION_SECTIONS},
+        section_totals=section_totals,
         entregas=_format_deliveries(delivery_data),
         produccion_personal=total_production,
         produccion_maquinas=total_machines,
@@ -144,33 +151,30 @@ def submit_report():
         timestamp=timestamp,
     )
 
-    # ── Guardar detalle en JSON (se mantiene) ──────────────────────────────────
+    # ── Guardar detalle en JSON ────────────────────────────────────────────────
     save_production_details_json(
         report_id, name, job_shift, date, quantity_persons,
-        timestamp, assembly_data, stringing_data, gluing_data,
+        timestamp, section_data,
     )
 
-    # ── Notificaciones ─────────────────────────────────────────────────────────
+    # ── Notificaciones — leer de DB, no de memoria ─────────────────────────────
     try:
-        nm       = NotificationManager()
-        base_url = os.getenv('APP_BASE_URL', '').rstrip('/')
+        from database import get_production_report_by_id
+        nm         = NotificationManager()
+        base_url   = os.getenv('APP_BASE_URL', '').rstrip('/')
         report_url = f'{base_url}/reportes/vista?date={date}' if base_url else None
 
+        saved      = get_production_report_by_id(report_id)
         simple_msg = f'📋 Nuevo reporte de producción #{report_id} — {name} ({get_text(job_shift)})'
         if report_url:
             simple_msg += f'\n🔗 {report_url}'
 
-        telegram_msg = simple_msg
-        email_body = build_production_email_body(
-            report_id, name, job_shift, date, quantity_persons,
-            machine_data, assembly_data, stringing_data, gluing_data, delivery_data,
-            total_production, total_machines, production_per_person_hour, additional_notes, timestamp,
-            report_url=report_url,
-        )
+        email_html = build_production_email_body_from_db(saved, report_url=report_url)
+
         nm.broadcast(
             subject=f'Nuevo Reporte de Produccion #{report_id} - {name}',
             text=f'Nuevo reporte de producción #{report_id} — {name} ({get_text(job_shift)}) — {date}',
-            html=email_body,
+            html=email_html,
             telegram_text=simple_msg,
             whatsapp_text=simple_msg,
             report_type='production',

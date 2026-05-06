@@ -91,77 +91,54 @@
 
                     <!-- Productos Detallados (JSON) -->
                     {% if report.json %}
-                        {% set has_products = report.json.ensamble or report.json.ensartado or report.json.pegado %}
-                        {% if has_products %}
+                        {% set ns = namespace(has_any=false) %}
+                        {% for section in production_sections %}
+                            {% if report.json[section.json_key] is defined and report.json[section.json_key] %}
+                                {% set ns.has_any = true %}
+                            {% endif %}
+                        {% endfor %}
+                        {% if ns.has_any %}
                             <div class="section">
-                                <h5>Productos Ensamblados</h5>
+                                <h5>Producción por Sección</h5>
                                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
-                                    
-                                    <!-- Ensamble -->
-                                    {% if report.json.ensamble %}
-                                        <div class="product-section">
-                                            <h6>Ensamble</h6>
-                                            <ul>
-                                                {% for product in report.json.ensamble %}
-                                                    <li>{{ product.producto }}: {{ product.cantidad }}</li>
-                                                {% endfor %}
-                                            </ul>
-                                        </div>
-                                    {% endif %}
-
-                                    <!-- Ensartado -->
-                                    {% if report.json.ensartado %}
-                                        <div class="product-section">
-                                            <h6>Ensartado</h6>
-                                            <ul>
-                                                {% for product in report.json.ensartado %}
-                                                    <li>{{ product.producto }}: {{ product.cantidad }}</li>
-                                                {% endfor %}
-                                            </ul>
-                                        </div>
-                                    {% endif %}
-
-                                    <!-- Pegado -->
-                                    {% if report.json.pegado %}
-                                        <div class="product-section">
-                                            <h6>Pegado</h6>
-                                            <ul>
-                                                {% for product in report.json.pegado %}
-                                                    <li>{{ product.producto }}: {{ product.cantidad }}</li>
-                                                {% endfor %}
-                                            </ul>
-                                        </div>
-                                    {% endif %}
+                                    {% for section in production_sections %}
+                                        {% set items = report.json[section.json_key] if section.json_key in report.json else [] %}
+                                        {% if items %}
+                                            <div class="product-section">
+                                                <h6>{{ section.label }}</h6>
+                                                <ul>
+                                                    {% for product in items %}
+                                                        <li>{{ product.producto }}: {{ product.cantidad }}</li>
+                                                    {% endfor %}
+                                                </ul>
+                                            </div>
+                                        {% endif %}
+                                    {% endfor %}
                                 </div>
                             </div>
                         {% endif %}
                     {% endif %}
-                    
-                    <!-- Fallback to CSV data if JSON not available or no products -->
-                    {% if not report.json or not (report.json.ensamble or report.json.ensartado or report.json.pegado) %}
-                        {% set has_csv_products = report.csv['Ensamble'] or report.csv['Ensartado'] or report.csv['Pegado'] %}
-                        {% if has_csv_products %}
+
+                    <!-- Fallback CSV si no hay JSON -->
+                    {% if not report.json %}
+                        {% set ns2 = namespace(has_any=false) %}
+                        {% for section in production_sections %}
+                            {% if section.csv_label in report.csv and report.csv[section.csv_label] %}
+                                {% set ns2.has_any = true %}
+                            {% endif %}
+                        {% endfor %}
+                        {% if ns2.has_any %}
                             <div class="section">
-                                <h5>Productos (Resumen)</h5>
+                                <h5>Producción por Sección</h5>
                                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px;">
-                                    {% if report.csv['Ensamble'] %}
-                                        <div class="product-section">
-                                            <h6>Ensamble</h6>
-                                            <p>{{ report.csv['Ensamble'] }}</p>
-                                        </div>
-                                    {% endif %}
-                                    {% if report.csv['Ensartado'] %}
-                                        <div class="product-section">
-                                            <h6>Ensartado</h6>
-                                            <p>{{ report.csv['Ensartado'] }}</p>
-                                        </div>
-                                    {% endif %}
-                                    {% if report.csv['Pegado'] %}
-                                        <div class="product-section">
-                                            <h6>Pegado</h6>
-                                            <p>{{ report.csv['Pegado'] }}</p>
-                                        </div>
-                                    {% endif %}
+                                    {% for section in production_sections %}
+                                        {% if section.csv_label in report.csv and report.csv[section.csv_label] %}
+                                            <div class="product-section">
+                                                <h6>{{ section.label }}</h6>
+                                                <p>{{ report.csv[section.csv_label] }}</p>
+                                            </div>
+                                        {% endif %}
+                                    {% endfor %}
                                 </div>
                             </div>
                         {% endif %}

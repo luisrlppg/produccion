@@ -78,17 +78,6 @@ STRINGS = {
     'transparent': 'Transparente',
 }
 
-PRODUCTION_CSV_HEADER = [
-    'ID Reporte', 'Nombre', 'Turno', 'Fecha', 'Trabajadores',
-    'Maquina 1 Cantidad', 'Maquina 1 Tipo de Cepillo', 'Maquina 1 Color',
-    'Maquina 2 Cantidad', 'Maquina 2 Tipo de Cepillo', 'Maquina 2 Color',
-    'Maquina 3 Cantidad', 'Maquina 3 Tipo de Cepillo', 'Maquina 3 Color',
-    'Ensamble', 'Ensartado', 'Pegado', 'Entregas',
-    'Produccion Personal', 'Produccion Maquinas', 'Produccion Total',
-    'Produccion por Persona por Hora',
-    'Notas Adicionales', 'Fecha y Hora de Envio',
-]
-
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 
 
@@ -100,7 +89,7 @@ def allowed_file(filename: str) -> bool:
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
-# ── JSON helper (production_details.json se mantiene) ─────────────────────────
+# ── Helpers de formato ─────────────────────────────────────────────────────────
 
 def _format_products(data):
     return ', '.join(f'{row[0]}: {row[1]}' for row in data) if data else ''
@@ -110,10 +99,15 @@ def _format_deliveries(data):
     return ', '.join(f'{row[0]} - {row[1]}' for row in data) if data else ''
 
 
+# ── JSON de detalles de producción ─────────────────────────────────────────────
+
 def save_production_details_json(report_id, name, job_shift, date, workers,
-                                  timestamp, assembly_data, stringing_data, gluing_data,
+                                  timestamp, section_data: dict,
                                   update_existing: bool = False):
-    """Guarda o actualiza el detalle de productos en production_details.json."""
+    """Guarda o actualiza el detalle de productos en production_details.json.
+    section_data: {'ensamble': [[name, qty], ...], 'pegado': [...], ...}
+    """
+    from blueprints.reports.production_sections import PRODUCTION_SECTIONS
     os.makedirs('data', exist_ok=True)
     json_file = 'data/production_details.json'
     detail = {
@@ -123,10 +117,11 @@ def save_production_details_json(report_id, name, job_shift, date, workers,
         'fecha':                 date,
         'trabajadores':          workers,
         'fecha_y_hora_de_envio': timestamp,
-        'ensamble':  [{'producto': p[0], 'cantidad': p[1]} for p in assembly_data],
-        'ensartado': [{'producto': p[0], 'cantidad': p[1]} for p in stringing_data],
-        'pegado':    [{'producto': p[0], 'cantidad': p[1]} for p in gluing_data],
     }
+    for s in PRODUCTION_SECTIONS:
+        data = section_data.get(s['key'], [])
+        detail[s['json_key']] = [{'producto': p[0], 'cantidad': p[1]} for p in data]
+
     try:
         with open(json_file, encoding='utf-8') as f:
             records = json.load(f)
@@ -134,7 +129,6 @@ def save_production_details_json(report_id, name, job_shift, date, workers,
         records = []
 
     if update_existing:
-        # Reemplazar el registro existente si lo hay
         replaced = False
         for i, r in enumerate(records):
             if str(r.get('id_reporte')) == str(report_id):
@@ -158,40 +152,7 @@ def read_production_details_json() -> list:
         return []
 
 
-# ── Constructores de mensajes de notificación ──────────────────────────────────
-
-def build_production_message(report_id, name, job_shift, date, workers,
-                              machine_data, assembly_data, stringing_data,
-                              gluing_data, delivery_data,
-                              total_production, total_machines, production_per_worker,
-                              additional_notes, timestamp,
-                              report_url: str | None = None) -> str:
-    lines = [
-        '📋 REPORTE DE PRODUCCIÓN',
-        f'🆔 #{report_id}  |  👤 {name}  |  🔄 {get_text(job_shift)}  |  📅 {date}',
-        f'👥 {workers} trabajadores',
-        f'👷 Personal: {total_production} uds  |  📈 {production_per_worker} uds/trabajador',
-    ]
-    if total_machines:
-        lines.append(f'🔧 Máquinas: {total_machines} uds')
-    if machine_data:
-        lines.append('   ' + '  '.join(
-            f'M{m[0]}: {m[1]} ({get_text(m[2])})' for m in machine_data
-        ))
-    if assembly_data:
-        lines.append('🔩 Ensamble: ' + ', '.join(f'{p} ×{q}' for p, q in assembly_data))
-    if stringing_data:
-        lines.append('🧵 Ensartado: ' + ', '.join(f'{p} ×{q}' for p, q in stringing_data))
-    if gluing_data:
-        lines.append('🔗 Pegado: ' + ', '.join(f'{p} ×{q}' for p, q in gluing_data))
-    if delivery_data:
-        lines.append('🚚 Entregas: ' + ', '.join(f'{c}' for c, *_ in delivery_data))
-    if additional_notes:
-        lines.append(f'📝 {additional_notes}')
-    if report_url:
-        lines.append(f'\n🔗 Ver reporte: {report_url}')
-    return '\n'.join(lines)
-
+# ── Mensajes de notificación ───────────────────────────────────────────────────
 
 def build_simple_message(report_id, report_type: str, item_name: str,
                           failure_description: str, timestamp: str,
@@ -207,19 +168,41 @@ def build_simple_message(report_id, report_type: str, item_name: str,
     return '\n'.join(lines)
 
 
-def build_production_email_body(report_id, name, job_shift, date, workers,
-                                 machine_data, assembly_data, stringing_data,
-                                 gluing_data, delivery_data,
-                                 total_production, total_machines, production_per_person_hour,
-                                 additional_notes, timestamp,
-                                 report_url: str | None = None) -> str:
+def build_production_email_body_from_db(report: dict,
+                                         report_url: str | None = None) -> str:
+    """
+    Construye el email HTML de notificación leyendo directamente
+    del dict que devuelve get_production_report_by_id().
 
-    total_combined = total_production + total_machines
+    Flujo: guardar en DB → leer de DB → llamar esta función → enviar.
+    """
+    from blueprints.reports.production_sections import PRODUCTION_SECTIONS
 
-    # ── Helpers ───────────────────────────────────────────────────────────────
+    report_id              = report['id']
+    name                   = report['nombre']
+    turno                  = report['turno']
+    date                   = report['fecha']
+    workers                = report['trabajadores']
+    timestamp              = report['timestamp']
+    total_production       = report['produccion_personal']
+    total_machines         = report['produccion_maquinas']
+    total_combined         = report['produccion_total']
+    production_per_hour    = report['produccion_por_persona_hora']
+    additional_notes       = report.get('notas', '')
+    entregas_str           = report.get('entregas', '')
+
+    # Máquinas desde columnas de la DB
+    machine_rows = []
+    for i in range(1, 4):
+        qty   = report.get(f'maquina{i}_cantidad') or 0
+        tipo  = report.get(f'maquina{i}_tipo') or ''
+        color = report.get(f'maquina{i}_color') or ''
+        if qty:
+            machine_rows.append([f'Máquina {i}', qty, tipo, color])
+
+    # ── Helpers HTML ──────────────────────────────────────────────────────────
     def kpi(label, value, color):
-        return f"""
-        <td style="text-align:center; padding:12px 16px;">
+        return f"""<td style="text-align:center; padding:12px 16px;">
             <div style="font-size:1.5rem; font-weight:800; color:{color};">{value}</div>
             <div style="font-size:.72rem; text-transform:uppercase; letter-spacing:.5px;
                         color:#718096; margin-top:3px;">{label}</div>
@@ -228,13 +211,19 @@ def build_production_email_body(report_id, name, job_shift, date, workers,
     def section_table(title, rows, cols):
         if not rows:
             return ''
-        header = ''.join(f'<th style="padding:8px 12px; text-align:left; background:#f7fafc; color:#4a5568; font-size:.8rem; text-transform:uppercase; letter-spacing:.4px;">{c}</th>' for c in cols)
-        body   = ''
-        for row in rows:
-            cells = ''.join(f'<td style="padding:8px 12px; border-bottom:1px solid #edf2f7; font-size:.88rem;">{v}</td>' for v in row)
-            body += f'<tr>{cells}</tr>'
-        return f"""
-        <div style="margin-bottom:24px;">
+        header = ''.join(
+            f'<th style="padding:8px 12px; text-align:left; background:#f7fafc; '
+            f'color:#4a5568; font-size:.8rem; text-transform:uppercase;">{c}</th>'
+            for c in cols
+        )
+        body = ''.join(
+            '<tr>' + ''.join(
+                f'<td style="padding:8px 12px; border-bottom:1px solid #edf2f7; font-size:.88rem;">{v}</td>'
+                for v in row
+            ) + '</tr>'
+            for row in rows
+        )
+        return f"""<div style="margin-bottom:24px;">
             <div style="font-weight:700; color:#2d3748; font-size:.95rem; margin-bottom:8px;
                         padding-bottom:6px; border-bottom:2px solid #e2e8f0;">{title}</div>
             <table style="width:100%; border-collapse:collapse;">
@@ -243,138 +232,88 @@ def build_production_email_body(report_id, name, job_shift, date, workers,
             </table>
         </div>"""
 
-    # ── KPIs ──────────────────────────────────────────────────────────────────
-    kpis_html = f"""
-    <table style="width:100%; border-collapse:collapse; background:#f7fafc;
-                  border-radius:8px; margin-bottom:24px;">
-        <tr>
-            {kpi('Total', f'{total_combined:,}', '#2b6cb0')}
-            {kpi('Personal', f'{total_production:,}', '#276749')}
-            {kpi('Máquinas', f'{total_machines:,}', '#c05621')}
-            {kpi('Uds/persona/hora', production_per_person_hour, '#553c9a')}
-        </tr>
-    </table>"""
+    kpis_html = f"""<table style="width:100%; border-collapse:collapse; background:#f7fafc;
+                  border-radius:8px; margin-bottom:24px;"><tr>
+        {kpi('Total', f'{total_combined:,}', '#2b6cb0')}
+        {kpi('Personal', f'{total_production:,}', '#276749')}
+        {kpi('Máquinas', f'{total_machines:,}', '#c05621')}
+        {kpi('Uds/persona/hora', production_per_hour, '#553c9a')}
+    </tr></table>"""
 
-    # ── Secciones de productos ─────────────────────────────────────────────────
-    machines_section = section_table(
-        '🔧 Producción de Máquinas',
-        [[f'Máquina {m[0]}', m[1], get_text(m[2]), get_text(m[3])] for m in machine_data],
-        ['Máquina', 'Cantidad', 'Tipo', 'Color'],
-    ) if machine_data else ''
+    machines_html = section_table('🔧 Producción de Máquinas', machine_rows,
+                                   ['Máquina', 'Cantidad', 'Tipo', 'Color'])
 
-    assembly_section = section_table(
-        '🔩 Ensamble',
-        [[p, q] for p, q in assembly_data],
-        ['Producto', 'Cantidad'],
-    ) if assembly_data else ''
+    # Secciones dinámicas — leer directamente de las columnas de la DB
+    sections_html = ''
+    for s in PRODUCTION_SECTIONS:
+        raw = report.get(s['key'], '') or ''
+        if not raw:
+            continue
+        # Formato almacenado: "Producto A: 10, Producto B: 5"
+        rows = []
+        for item in raw.split(', '):
+            if ': ' in item:
+                prod, qty = item.split(': ', 1)
+                rows.append([prod.strip(), qty.strip()])
+        sections_html += section_table(s['label'], rows, ['Producto', 'Cantidad'])
 
-    stringing_section = section_table(
-        '🧵 Ensartado',
-        [[p, q] for p, q in stringing_data],
-        ['Producto', 'Cantidad'],
-    ) if stringing_data else ''
+    # Entregas
+    deliveries_html = ''
+    if entregas_str:
+        rows = []
+        for item in entregas_str.split(', '):
+            if ' - ' in item:
+                cliente, desc = item.split(' - ', 1)
+                rows.append([cliente.strip(), desc.strip()])
+        deliveries_html = section_table('🚚 Entregas', rows, ['Cliente', 'Producto'])
 
-    gluing_section = section_table(
-        '🔗 Pegado',
-        [[p, q] for p, q in gluing_data],
-        ['Producto', 'Cantidad'],
-    ) if gluing_data else ''
-
-    deliveries_section = section_table(
-        '🚚 Entregas',
-        [[c, d] for c, d, *_ in delivery_data],
-        ['Cliente', 'Producto'],
-    ) if delivery_data else ''
-
-    notes_html = f"""
-    <div style="background:#fffbeb; border-left:4px solid #f6ad55; padding:12px 16px;
-                border-radius:4px; margin-bottom:24px; font-size:.88rem; color:#744210;">
+    notes_html = f"""<div style="background:#fffbeb; border-left:4px solid #f6ad55;
+                padding:12px 16px; border-radius:4px; margin-bottom:24px;
+                font-size:.88rem; color:#744210;">
         <strong>📝 Notas:</strong> {additional_notes}
     </div>""" if additional_notes else ''
 
-    link_html = f"""
-    <div style="text-align:center; margin:24px 0;">
-        <a href="{report_url}"
-           style="background:#3182ce; color:#fff; padding:12px 28px; border-radius:6px;
-                  text-decoration:none; font-weight:600; font-size:.95rem; display:inline-block;">
-            Ver Reporte Completo →
-        </a>
+    link_html = f"""<div style="text-align:center; margin:24px 0;">
+        <a href="{report_url}" style="background:#3182ce; color:#fff; padding:12px 28px;
+           border-radius:6px; text-decoration:none; font-weight:600; font-size:.95rem;
+           display:inline-block;">Ver Reporte Completo →</a>
     </div>""" if report_url else ''
 
     return f"""<!DOCTYPE html>
-<html lang="es">
-<head><meta charset="UTF-8"></head>
+<html lang="es"><head><meta charset="UTF-8"></head>
 <body style="margin:0; padding:0; background:#edf2f7; font-family:'Segoe UI',Arial,sans-serif;">
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#edf2f7; padding:32px 0;">
 <tr><td align="center">
 <table width="600" cellpadding="0" cellspacing="0"
-       style="background:#fff; border-radius:10px; overflow:hidden;
-              box-shadow:0 2px 8px rgba(0,0,0,.08);">
-
-    <!-- Header -->
-    <tr>
-        <td style="background:#2b6cb0; padding:24px 32px;">
-            <div style="color:#fff; font-size:1.3rem; font-weight:700;">
-                📋 Nuevo Reporte de Producción
-            </div>
-            <div style="color:#bee3f8; font-size:.88rem; margin-top:4px;">
-                Plásticos Plasa de Guadalajara
-            </div>
-        </td>
-    </tr>
-
-    <!-- Info general -->
-    <tr>
-        <td style="padding:24px 32px 0;">
-            <table style="width:100%; border-collapse:collapse; font-size:.88rem; color:#4a5568;">
-                <tr>
-                    <td style="padding:4px 0;"><strong>Reporte #</strong></td>
-                    <td style="padding:4px 0;">{report_id}</td>
-                    <td style="padding:4px 0;"><strong>Fecha</strong></td>
-                    <td style="padding:4px 0;">{date}</td>
-                </tr>
-                <tr>
-                    <td style="padding:4px 0;"><strong>Reportado por</strong></td>
-                    <td style="padding:4px 0;">{name}</td>
-                    <td style="padding:4px 0;"><strong>Turno</strong></td>
-                    <td style="padding:4px 0;">{get_text(job_shift)}</td>
-                </tr>
-                <tr>
-                    <td style="padding:4px 0;"><strong>Trabajadores</strong></td>
-                    <td style="padding:4px 0;">{workers}</td>
-                    <td style="padding:4px 0;"><strong>Enviado</strong></td>
-                    <td style="padding:4px 0;">{timestamp}</td>
-                </tr>
-            </table>
-        </td>
-    </tr>
-
-    <!-- KPIs -->
+       style="background:#fff; border-radius:10px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,.08);">
+    <tr><td style="background:#2b6cb0; padding:24px 32px;">
+        <div style="color:#fff; font-size:1.3rem; font-weight:700;">📋 Nuevo Reporte de Producción</div>
+        <div style="color:#bee3f8; font-size:.88rem; margin-top:4px;">Plásticos Plasa de Guadalajara</div>
+    </td></tr>
+    <tr><td style="padding:24px 32px 0;">
+        <table style="width:100%; border-collapse:collapse; font-size:.88rem; color:#4a5568;">
+            <tr>
+                <td style="padding:4px 0;"><strong>Reporte #</strong></td><td>{report_id}</td>
+                <td style="padding:4px 0;"><strong>Fecha</strong></td><td>{date}</td>
+            </tr>
+            <tr>
+                <td style="padding:4px 0;"><strong>Reportado por</strong></td><td>{name}</td>
+                <td style="padding:4px 0;"><strong>Turno</strong></td><td>{turno}</td>
+            </tr>
+            <tr>
+                <td style="padding:4px 0;"><strong>Trabajadores</strong></td><td>{workers}</td>
+                <td style="padding:4px 0;"><strong>Enviado</strong></td><td>{timestamp}</td>
+            </tr>
+        </table>
+    </td></tr>
     <tr><td style="padding:20px 32px 0;">{kpis_html}</td></tr>
-
-    <!-- Secciones -->
-    <tr>
-        <td style="padding:8px 32px 24px;">
-            {machines_section}
-            {assembly_section}
-            {stringing_section}
-            {gluing_section}
-            {deliveries_section}
-            {notes_html}
-            {link_html}
-        </td>
-    </tr>
-
-    <!-- Footer -->
-    <tr>
-        <td style="background:#f7fafc; padding:16px 32px; text-align:center;
-                   font-size:.75rem; color:#a0aec0; border-top:1px solid #e2e8f0;">
-            Reporte automático · Plásticos Plasa de Guadalajara
-        </td>
-    </tr>
-
+    <tr><td style="padding:8px 32px 24px;">
+        {machines_html}{sections_html}{deliveries_html}{notes_html}{link_html}
+    </td></tr>
+    <tr><td style="background:#f7fafc; padding:16px 32px; text-align:center;
+               font-size:.75rem; color:#a0aec0; border-top:1px solid #e2e8f0;">
+        Reporte automático · Plásticos Plasa de Guadalajara
+    </td></tr>
 </table>
-</td></tr>
-</table>
-</body>
-</html>"""
+</td></tr></table>
+</body></html>"""

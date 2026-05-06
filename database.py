@@ -1,20 +1,5 @@
 """
 database.py — capa de acceso a datos SQLite para PPG Unified.
-
-Uso:
-    from database import get_db, init_db
-
-    # En app.py al arrancar:
-    init_db(app)
-
-    # En cualquier ruta:
-    with get_db() as db:
-        db.execute("INSERT INTO ...")
-
-Migraciones:
-    Agregar archivos SQL numerados en data/migrations/
-    (002_add_column.sql, 003_...) — se aplican automáticamente
-    en orden si aún no han sido registradas en la tabla _migrations.
 """
 
 import csv
@@ -23,18 +8,17 @@ import os
 import sqlite3
 from contextlib import contextmanager
 
-DB_PATH         = os.getenv('DB_PATH', 'data/ppg.db')
-MIGRATIONS_DIR  = 'data/migrations'
+DB_PATH        = os.getenv('DB_PATH', 'data/ppg.db')
+MIGRATIONS_DIR = 'data/migrations'
 
 
 # ── Conexión ───────────────────────────────────────────────────────────────────
 
 @contextmanager
 def get_db():
-    """Context manager que entrega una conexión con row_factory y cierra al salir."""
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
-    conn.execute('PRAGMA journal_mode=WAL')   # mejor concurrencia con gunicorn
+    conn.execute('PRAGMA journal_mode=WAL')
     conn.execute('PRAGMA foreign_keys=ON')
     try:
         yield conn
@@ -51,7 +35,7 @@ def get_db():
 def _ensure_migrations_table(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS _migrations (
-            name      TEXT PRIMARY KEY,
+            name       TEXT PRIMARY KEY,
             applied_at TEXT NOT NULL DEFAULT (datetime('now'))
         )
     """)
@@ -63,13 +47,11 @@ def _applied_migrations(conn) -> set:
 
 
 def run_migrations():
-    """Aplica todos los archivos .sql de MIGRATIONS_DIR que aún no se han ejecutado."""
     os.makedirs(MIGRATIONS_DIR, exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     try:
         _ensure_migrations_table(conn)
         applied = _applied_migrations(conn)
-
         files = sorted(
             f for f in os.listdir(MIGRATIONS_DIR)
             if f.endswith('.sql') and f not in applied
@@ -79,12 +61,9 @@ def run_migrations():
             with open(path, encoding='utf-8') as f:
                 sql = f.read()
             conn.executescript(sql)
-            conn.execute(
-                'INSERT INTO _migrations (name) VALUES (?)', (fname,)
-            )
+            conn.execute('INSERT INTO _migrations (name) VALUES (?)', (fname,))
             conn.commit()
             print(f'[DB] Migración aplicada: {fname}')
-
         if not files:
             print('[DB] Sin migraciones pendientes.')
     finally:
@@ -92,7 +71,6 @@ def run_migrations():
 
 
 def init_db(app):
-    """Llamar desde create_app() — inicializa la DB y corre migraciones."""
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     run_migrations()
     print(f'[DB] Lista en {DB_PATH}')
@@ -105,19 +83,30 @@ def insert_production_report(
     maquina1_cantidad, maquina1_tipo, maquina1_color,
     maquina2_cantidad, maquina2_tipo, maquina2_color,
     maquina3_cantidad, maquina3_tipo, maquina3_color,
-    ensamble, ensartado, pegado, entregas,
+    section_data: dict,   # {'ensamble': '...', 'ensartado': '...', ...}
+    section_totals: dict, # {'ensamble': 120, 'ensartado': 80, ...}
+    entregas,
     produccion_personal, produccion_maquinas, produccion_total,
     produccion_por_persona_hora, notas, timestamp,
 ) -> int:
     """Inserta un reporte de producción y retorna el ID generado."""
+    from blueprints.reports.production_sections import PRODUCTION_SECTIONS, SECTION_KEYS
+    section_cols        = ', '.join(SECTION_KEYS)
+    section_placeholders = ', '.join('?' for _ in SECTION_KEYS)
+    section_vals        = [section_data.get(k, '') for k in SECTION_KEYS]
+
+    total_cols         = ', '.join(s['total_col'] for s in PRODUCTION_SECTIONS)
+    total_placeholders = ', '.join('?' for _ in PRODUCTION_SECTIONS)
+    total_vals         = [section_totals.get(s['key'], 0) for s in PRODUCTION_SECTIONS]
+
     with get_db() as db:
-        cur = db.execute("""
+        cur = db.execute(f"""
             INSERT INTO production_reports (
                 nombre, turno, fecha, trabajadores,
                 maquina1_cantidad, maquina1_tipo, maquina1_color,
                 maquina2_cantidad, maquina2_tipo, maquina2_color,
                 maquina3_cantidad, maquina3_tipo, maquina3_color,
-                ensamble, ensartado, pegado, entregas,
+                {section_cols}, {total_cols}, entregas,
                 produccion_personal, produccion_maquinas, produccion_total,
                 produccion_por_persona_hora, notas, timestamp
             ) VALUES (
@@ -125,7 +114,7 @@ def insert_production_report(
                 ?,?,?,
                 ?,?,?,
                 ?,?,?,
-                ?,?,?,?,
+                {section_placeholders}, {total_placeholders}, ?,
                 ?,?,?,
                 ?,?,?
             )
@@ -134,7 +123,7 @@ def insert_production_report(
             maquina1_cantidad, maquina1_tipo, maquina1_color,
             maquina2_cantidad, maquina2_tipo, maquina2_color,
             maquina3_cantidad, maquina3_tipo, maquina3_color,
-            ensamble, ensartado, pegado, entregas,
+            *section_vals, *total_vals, entregas,
             produccion_personal, produccion_maquinas, produccion_total,
             produccion_por_persona_hora, notas, timestamp,
         ))
@@ -142,7 +131,6 @@ def insert_production_report(
 
 
 def get_production_report_by_id(report_id: int) -> dict | None:
-    """Retorna un reporte por ID o None si no existe."""
     with get_db() as db:
         row = db.execute(
             'SELECT * FROM production_reports WHERE id = ?', (report_id,)
@@ -151,7 +139,6 @@ def get_production_report_by_id(report_id: int) -> dict | None:
 
 
 def get_production_reports(fecha: str | None = None) -> list[dict]:
-    """Retorna todos los reportes o los de una fecha específica, como lista de dicts."""
     with get_db() as db:
         if fecha:
             rows = db.execute(
@@ -166,50 +153,6 @@ def get_production_reports(fecha: str | None = None) -> list[dict]:
 
 
 def get_production_dates() -> list[str]:
-    """Retorna lista de fechas únicas con reportes, ordenadas descendente."""
-    with get_db() as db:
-        rows = db.execute(
-            'SELECT DISTINCT fecha FROM production_reports ORDER BY fecha DESC'
-        ).fetchall()
-        return [r[0] for r in rows]
-
-
-def update_production_report(report_id: int, **fields) -> bool:
-    """Actualiza campos de un reporte. Retorna True si se modificó alguna fila."""
-    if not fields:
-        return False
-    cols = ', '.join(f'{k} = ?' for k in fields)
-    vals = list(fields.values()) + [report_id]
-    with get_db() as db:
-        cur = db.execute(
-            f'UPDATE production_reports SET {cols} WHERE id = ?', vals
-        )
-        return cur.rowcount > 0
-
-
-def delete_production_report(report_id: int) -> bool:
-    """Elimina un reporte por ID. Retorna True si se eliminó."""
-    with get_db() as db:
-        cur = db.execute(
-            'DELETE FROM production_reports WHERE id = ?', (report_id,)
-        )
-        return cur.rowcount > 0
-    """Retorna todos los reportes o los de una fecha específica, como lista de dicts."""
-    with get_db() as db:
-        if fecha:
-            rows = db.execute(
-                'SELECT * FROM production_reports WHERE fecha = ? ORDER BY id',
-                (fecha,)
-            ).fetchall()
-        else:
-            rows = db.execute(
-                'SELECT * FROM production_reports ORDER BY timestamp DESC'
-            ).fetchall()
-        return [dict(r) for r in rows]
-
-
-def get_production_dates() -> list[str]:
-    """Retorna lista de fechas únicas con reportes, ordenadas descendente."""
     with get_db() as db:
         rows = db.execute(
             'SELECT DISTINCT fecha FROM production_reports ORDER BY fecha DESC'
@@ -225,6 +168,26 @@ def get_all_production_reports() -> list[dict]:
         return [dict(r) for r in rows]
 
 
+def update_production_report(report_id: int, **fields) -> bool:
+    if not fields:
+        return False
+    cols = ', '.join(f'{k} = ?' for k in fields)
+    vals = list(fields.values()) + [report_id]
+    with get_db() as db:
+        cur = db.execute(
+            f'UPDATE production_reports SET {cols} WHERE id = ?', vals
+        )
+        return cur.rowcount > 0
+
+
+def delete_production_report(report_id: int) -> bool:
+    with get_db() as db:
+        cur = db.execute(
+            'DELETE FROM production_reports WHERE id = ?', (report_id,)
+        )
+        return cur.rowcount > 0
+
+
 # ── Personal / Company reports ─────────────────────────────────────────────────
 
 def insert_simple_report(
@@ -232,7 +195,6 @@ def insert_simple_report(
     item_name: str, location: str, failure_description: str,
     additional_info: str, photo_path: str, timestamp: str,
 ) -> int:
-    """Inserta un reporte personal o de empresa y retorna el ID."""
     assert table in ('personal_reports', 'company_reports')
     with get_db() as db:
         cur = db.execute(f"""
@@ -259,7 +221,7 @@ PRODUCTION_CSV_HEADER = [
     'Maquina 1 Cantidad', 'Maquina 1 Tipo de Cepillo', 'Maquina 1 Color',
     'Maquina 2 Cantidad', 'Maquina 2 Tipo de Cepillo', 'Maquina 2 Color',
     'Maquina 3 Cantidad', 'Maquina 3 Tipo de Cepillo', 'Maquina 3 Color',
-    'Ensamble', 'Ensartado', 'Pegado', 'Entregas',
+    'Ensamble', 'Ensartado', 'Pegado', 'Perforado', 'Entregas',
     'Produccion Personal', 'Produccion Maquinas', 'Produccion Total',
     'Produccion por Persona por Hora', 'Notas Adicionales', 'Fecha y Hora de Envio',
 ]
@@ -271,18 +233,30 @@ SIMPLE_CSV_HEADER = [
 
 
 def export_production_csv() -> str:
-    """Genera el contenido CSV de producción como string UTF-8."""
+    from blueprints.reports.production_sections import PRODUCTION_SECTIONS
     rows = get_all_production_reports()
     buf  = io.StringIO()
     w    = csv.writer(buf)
-    w.writerow(PRODUCTION_CSV_HEADER)
+    # Header dinámico
+    section_labels = [s['csv_label'] for s in PRODUCTION_SECTIONS]
+    header = [
+        'ID Reporte', 'Nombre', 'Turno', 'Fecha', 'Trabajadores',
+        'Maquina 1 Cantidad', 'Maquina 1 Tipo de Cepillo', 'Maquina 1 Color',
+        'Maquina 2 Cantidad', 'Maquina 2 Tipo de Cepillo', 'Maquina 2 Color',
+        'Maquina 3 Cantidad', 'Maquina 3 Tipo de Cepillo', 'Maquina 3 Color',
+        *section_labels, 'Entregas',
+        'Produccion Personal', 'Produccion Maquinas', 'Produccion Total',
+        'Produccion por Persona por Hora', 'Notas Adicionales', 'Fecha y Hora de Envio',
+    ]
+    w.writerow(header)
     for r in rows:
+        section_vals = [r.get(s['key'], '') for s in PRODUCTION_SECTIONS]
         w.writerow([
             r['id'], r['nombre'], r['turno'], r['fecha'], r['trabajadores'],
             r['maquina1_cantidad'], r['maquina1_tipo'], r['maquina1_color'],
             r['maquina2_cantidad'], r['maquina2_tipo'], r['maquina2_color'],
             r['maquina3_cantidad'], r['maquina3_tipo'], r['maquina3_color'],
-            r['ensamble'], r['ensartado'], r['pegado'], r['entregas'],
+            *section_vals, r['entregas'],
             r['produccion_personal'], r['produccion_maquinas'], r['produccion_total'],
             r['produccion_por_persona_hora'], r['notas'], r['timestamp'],
         ])
@@ -290,7 +264,6 @@ def export_production_csv() -> str:
 
 
 def export_simple_csv(table: str) -> str:
-    """Genera el contenido CSV de personal o empresa como string UTF-8."""
     rows = get_simple_reports(table)
     buf  = io.StringIO()
     w    = csv.writer(buf)

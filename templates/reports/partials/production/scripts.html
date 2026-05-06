@@ -39,12 +39,8 @@ function validateRequiredFields() {
     }
 
     // Validar filas de productos: si hay nombre debe haber cantidad y viceversa
-    const SECTIONS = [
-        { prefix: 'assembly',  label: 'Ensamble' },
-        { prefix: 'stringing', label: 'Ensartado' },
-        { prefix: 'gluing',    label: 'Pegado' },
-    ];
-    SECTIONS.forEach(({ prefix, label }) => {
+    const SECTIONS = {{ production_sections | tojson }};
+    SECTIONS.forEach(({ css_prefix: prefix, label }) => {
         document.querySelectorAll('.' + prefix + '-row').forEach((row, i) => {
             const nameEl = row.querySelector('.' + prefix + '-name');
             const qtyEl  = row.querySelector('.' + prefix + '-qty');
@@ -122,7 +118,8 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     // Bind validación en tiempo real a las filas iniciales
-    ['assembly', 'stringing', 'gluing'].forEach(prefix => {
+    const SECTION_PREFIXES = {{ production_sections | map(attribute='css_prefix') | list | tojson }};
+    SECTION_PREFIXES.forEach(prefix => {
         document.querySelectorAll('.' + prefix + '-row').forEach(row => {
             _bindRowValidation(row, prefix);
         });
@@ -281,9 +278,9 @@ function collectDeliveries() {
 
 document.querySelector('form').addEventListener('submit', function (e) {
     if (!validateRequiredFields()) { e.preventDefault(); return false; }
-    collectRows('assembly',  'assembly_products');
-    collectRows('stringing', 'stringing_products');
-    collectRows('gluing',    'gluing_products');
+    // Serializar todas las secciones dinámicamente
+    const ALL_SECTIONS = {{ production_sections | tojson }};
+    ALL_SECTIONS.forEach(s => collectRows(s.css_prefix, s.css_prefix + '_products'));
     collectDeliveries();
     const btn = this.querySelector('button[type="submit"]');
     if (btn) { btn.innerHTML = '⏳ Enviando...'; btn.disabled = true; }
