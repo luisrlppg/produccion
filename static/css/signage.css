@@ -76,15 +76,23 @@ div[class*="section-cepillo"]   { background-color: #00994d; color: white; }
     min-height: 0;
 }
 
+/* Barra de acciones — siempre visible arriba */
+.pgl-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 0 10px;
+    flex-shrink: 0;
+}
+
 .production-grid-list {
     display: flex;
     gap: 10px;
-    flex: 1;
-    min-height: 0;
-    align-items: stretch;
+    /* Las columnas se alinean al tope y todas toman la altura de la más alta */
+    align-items: flex-start;
 }
 
-/* Cada columna ocupa el espacio proporcional a su cantidad de items */
+/* Cada columna crece según su contenido; todas tienen el mismo ancho */
 .pgl-column {
     display: flex;
     flex-direction: column;
@@ -92,8 +100,7 @@ div[class*="section-cepillo"]   { background-color: #00994d; color: white; }
     border-radius: 10px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.08);
     overflow: hidden;
-    min-height: 0;
-    flex: 1;          /* igual por defecto; JS puede ajustar con flex-grow */
+    flex: 1;
     min-width: 180px;
 }
 
@@ -200,23 +207,7 @@ div[class*="section-cepillo"]   { background-color: #00994d; color: white; }
     flex-shrink: 0;
 }
 
-/* Footer con botones de acción */
-.pgl-footer {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 8px 4px 4px;
-    flex-shrink: 0;
-    gap: 8px;
-}
-.pgl-footer__summary {
-    font-size: 0.78rem;
-    color: #666;
-    font-weight: 500;
-}
-.pgl-footer__summary strong { color: #0066cc; }
-
-/* Estado vacío por columna */
+/* Mensaje de sección vacía */
 .pgl-empty {
     text-align: center;
     color: #aaa;

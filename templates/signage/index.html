@@ -57,9 +57,8 @@
             <form action="{{ url_for('signage.update_display') }}" method="POST" id="displayForm">
                 <!-- Campo oculto: items seleccionados serializados como JSON -->
                 <input type="hidden" name="selected_items" id="selectedItemsInput" value="[]">
-                <div class="production-grid-list" id="productionGrid"></div>
-                <div class="pgl-footer">
-                    <button type="button" id="reloadDataBtn" class="btn btn-outline-primary btn-sm me-2">
+                <div class="pgl-toolbar">
+                    <button type="button" id="reloadDataBtn" class="btn btn-outline-primary btn-sm">
                         <i class="fas fa-sync-alt me-1"></i> Actualizar
                     </button>
                     <button type="submit" class="btn btn-success btn-sm px-4"
@@ -67,6 +66,7 @@
                         <i class="fas fa-save me-1"></i> Guardar Selección
                     </button>
                 </div>
+                <div class="production-grid-list" id="productionGrid"></div>
             </form>
         </div>
 
