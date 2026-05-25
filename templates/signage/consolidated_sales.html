@@ -1,0 +1,191 @@
+{% extends "signage/base.html" %}
+
+{% block title %}Ventas Consolidadas — PPG{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4">
+
+    <div class="d-flex align-items-center gap-3 mb-4 flex-wrap">
+        <h4 class="mb-0"><i class="fas fa-table me-2"></i>Ventas Consolidadas</h4>
+        <button id="loadBtn" class="btn btn-primary btn-sm">
+            <i class="fas fa-sync-alt me-1"></i> Cargar Ventas
+        </button>
+        <div id="metaInfo" class="text-muted small" style="display:none">
+            <i class="fas fa-clock me-1"></i> Actualizado: <span id="updateTimestamp"></span>
+            &nbsp;·&nbsp; <span id="rowCount"></span> líneas
+        </div>
+    </div>
+
+    <div id="errorAlert" class="alert alert-danger" style="display:none"></div>
+    <div id="loadingIndicator" class="text-center py-5" style="display:none">
+        <i class="fas fa-spinner fa-spin fa-2x text-primary"></i>
+        <p class="text-muted mt-2">Consultando Odoo…</p>
+    </div>
+
+    <div id="tableWrapper" style="display:none">
+        <div class="table-responsive">
+            <table class="table table-bordered table-hover align-middle mb-0" id="salesTable">
+                <thead class="table-dark">
+                    <tr>
+                        <th style="min-width:160px">Cliente</th>
+                        <th style="width:100px" class="text-center">Cant. Fabricar</th>
+                        <th style="width:90px" class="text-center">Cantidad</th>
+                        <th style="min-width:200px">Producto</th>
+                        <th style="width:130px">Color</th>
+                        <th style="min-width:160px">Notas</th>
+                        <th style="width:100px">Fecha</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody"></tbody>
+            </table>
+        </div>
+        <p class="text-muted small mt-2 text-end" id="footerCount"></p>
+    </div>
+
+    <div id="emptyState" class="text-center py-5 text-muted" style="display:none">
+        <i class="fas fa-inbox fa-3x mb-3"></i>
+        <p>No hay ventas activas. Presiona <strong>Cargar Ventas</strong> para obtener datos desde Odoo.</p>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const BASE = '/signage';
+let _rows = [];
+
+document.getElementById('loadBtn').addEventListener('click', loadData);
+loadData();
+
+function loadData() {
+    const btn = document.getElementById('loadBtn');
+    const tbody = document.getElementById('tableBody');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Cargando…';
+
+    document.getElementById('errorAlert').style.display = 'none';
+    document.getElementById('loadingIndicator').style.display = 'block';
+    document.getElementById('tableWrapper').style.display = 'none';
+    document.getElementById('emptyState').style.display = 'none';
+    document.getElementById('metaInfo').style.display = 'none';
+
+    fetch(BASE + '/consolidated-sales-data')
+        .then(r => {
+            if (r.status === 401) { location.href = '/login'; throw new Error('unauth'); }
+            return r.json();
+        })
+        .then(data => {
+            document.getElementById('loadingIndicator').style.display = 'none';
+            if (data.error) {
+                document.getElementById('errorAlert').textContent = data.error;
+                document.getElementById('errorAlert').style.display = 'block';
+                return;
+            }
+            _rows = data.rows || [];
+            document.getElementById('updateTimestamp').textContent = data.now;
+            document.getElementById('rowCount').textContent = data.total;
+            document.getElementById('metaInfo').style.display = '';
+
+            if (!_rows.length) {
+                document.getElementById('emptyState').style.display = 'block';
+                return;
+            }
+            renderRows();
+            document.getElementById('tableWrapper').style.display = '';
+            document.getElementById('footerCount').textContent = data.total + ' líneas';
+        })
+        .catch(err => {
+            if (err.message === 'unauth') return;
+            document.getElementById('loadingIndicator').style.display = 'none';
+            document.getElementById('errorAlert').textContent = 'Error: ' + err.message;
+            document.getElementById('errorAlert').style.display = 'block';
+        })
+        .finally(() => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-sync-alt me-1"></i> Actualizar';
+        });
+}
+
+const CUSTOMER_PALETTE = [
+    '#FFE0CC', '#CCE8FF', '#D4EDDA', '#FFF3CD', '#F8D7DA',
+    '#E2D9F3', '#D1ECF1', '#FDE2E4', '#E8F5E9', '#FFF8E1',
+    '#E3F2FD', '#F3E5F5', '#E0F2F1', '#FFF9C4', '#FFECB3',
+    '#F8BBD0', '#C8E6C9', '#BBDEFB', '#DCEDC8', '#FFE0B2',
+    '#E1BEE7', '#B2DFDB', '#FFE082', '#C5CAE9', '#D7CCC8',
+];
+
+function renderRows() {
+    const tbody = document.getElementById('tableBody');
+
+    _rows.sort((a, b) => a.partner.localeCompare(b.partner, 'es'));
+
+    const customerColors = {};
+    let colorIndex = 0;
+    _rows.forEach(r => {
+        if (!customerColors[r.partner]) {
+            customerColors[r.partner] = CUSTOMER_PALETTE[colorIndex % CUSTOMER_PALETTE.length];
+            colorIndex++;
+        }
+    });
+    tbody.innerHTML = _rows.map(r => {
+        const bgColor = customerColors[r.partner];
+        const bgStyle = 'style="background-color:' + bgColor + '"';
+        return '<tr>' +
+            '<td ' + bgStyle + '><strong>' + escHtml(r.partner) + '</strong><br><small class="text-muted">' + escHtml(r.order_name) + '</small></td>' +
+            '<td ' + bgStyle + ' class="text-center">' +
+                '<input type="number" class="form-control form-control-sm editable-field text-center" data-line-id="' + r.line_id + '" data-field="qty_to_manuf" value="' + escAttr(r.qty_to_manuf) + '" min="0" step="1">' +
+            '</td>' +
+            '<td ' + bgStyle + ' class="text-center fw-bold">' + Number(r.ordered_qty).toLocaleString('es-MX') + '</td>' +
+            '<td ' + bgStyle + '>' + escHtml(r.product_name) + '</td>' +
+            '<td ' + bgStyle + '>' +
+                '<input type="text" class="form-control form-control-sm editable-field" data-line-id="' + r.line_id + '" data-field="color" value="' + escAttr(r.color) + '" placeholder="—">' +
+            '</td>' +
+            '<td ' + bgStyle + '>' +
+                '<input type="text" class="form-control form-control-sm editable-field" data-line-id="' + r.line_id + '" data-field="notes" value="' + escAttr(r.notes) + '" placeholder="—">' +
+            '</td>' +
+            '<td ' + bgStyle + ' class="text-nowrap">' + escHtml(r.date) + '</td>' +
+        '</tr>';
+    }).join('');
+
+    document.querySelectorAll('.editable-field').forEach(input => {
+        input.addEventListener('blur', onFieldBlur);
+        input.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') { e.preventDefault(); this.blur(); }
+        });
+    });
+}
+
+function onFieldBlur() {
+    const lineId = this.dataset.lineId;
+    const field = this.dataset.field;
+    const value = this.value.trim();
+    saveField(lineId, field, value);
+}
+
+let _saveTimers = {};
+function saveField(lineId, field, value) {
+    if (_saveTimers[lineId + '_' + field]) {
+        clearTimeout(_saveTimers[lineId + '_' + field]);
+    }
+    _saveTimers[lineId + '_' + field] = setTimeout(() => {
+        const row = _rows.find(r => r.line_id == lineId);
+        if (row) row[field] = value;
+        fetch(BASE + '/consolidated-sales-save', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({line_id: lineId, [field]: value}),
+        }).catch(() => {});
+    }, 400);
+}
+
+function escHtml(s) {
+    if (!s) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function escAttr(s) {
+    if (!s) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+</script>
+{% endblock %}

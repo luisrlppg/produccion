@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ventas Consolidadas — Display PPG</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { height: 100%; font-family: "Segoe UI", Arial, sans-serif; background: #fff; }
+        #tableWrapper { height: 100vh; display: flex; flex-direction: column; }
+        #tableWrapper .table-responsive { flex: 1; overflow-y: auto; }
+        #tableWrapper thead { position: sticky; top: 0; z-index: 2; }
+        #salesTable { margin-bottom: 0; }
+        #salesTable td { vertical-align: middle; font-size: 0.95rem; }
+        #salesTable th { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.04em; }
+        #loadingIndicator { position: fixed; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; background: #fff; z-index: 999; }
+        .refresh-bar { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.7); color: #fff; padding: 4px 16px; font-size: 0.75rem; display: flex; justify-content: space-between; align-items: center; z-index: 3; }
+    </style>
+</head>
+<body>
+
+    <div id="loadingIndicator">
+        <div class="text-center">
+            <i class="fas fa-spinner fa-spin fa-3x text-primary"></i>
+            <p class="text-muted mt-3 fs-5">Cargando ventas consolidadas…</p>
+        </div>
+    </div>
+
+    <div id="tableWrapper" style="display:none">
+        <div class="table-responsive">
+            <table class="table table-bordered align-middle" id="salesTable">
+                <thead class="table-dark">
+                    <tr>
+                        <th style="min-width:140px">Cliente</th>
+                        <th style="width:100px" class="text-center">Cant. Fabricar</th>
+                        <th style="width:80px" class="text-center">Cantidad</th>
+                        <th style="min-width:180px">Producto</th>
+                        <th style="width:100px">Color</th>
+                        <th style="min-width:140px">Notas</th>
+                        <th style="width:90px">Fecha</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody"></tbody>
+            </table>
+        </div>
+        <div class="refresh-bar">
+            <span><i class="fas fa-clock me-1"></i> <span id="updateTimestamp"></span></span>
+            <span><span id="rowCount">0</span> líneas</span>
+        </div>
+    </div>
+
+<script>
+const BASE = '/signage';
+const CUSTOMER_PALETTE = [
+    '#FFE0CC', '#CCE8FF', '#D4EDDA', '#FFF3CD', '#F8D7DA',
+    '#E2D9F3', '#D1ECF1', '#FDE2E4', '#E8F5E9', '#FFF8E1',
+    '#E3F2FD', '#F3E5F5', '#E0F2F1', '#FFF9C4', '#FFECB3',
+    '#F8BBD0', '#C8E6C9', '#BBDEFB', '#DCEDC8', '#FFE0B2',
+    '#E1BEE7', '#B2DFDB', '#FFE082', '#C5CAE9', '#D7CCC8',
+];
+
+loadData();
+setInterval(loadData, 60000);
+
+function loadData() {
+    fetch(BASE + '/consolidated-display-data')
+        .then(r => r.json())
+        .then(data => {
+            document.getElementById('loadingIndicator').style.display = 'none';
+            if (data.error) return;
+            const rows = data.rows || [];
+            document.getElementById('updateTimestamp').textContent = data.now;
+            document.getElementById('rowCount').textContent = rows.length;
+            renderRows(rows);
+            document.getElementById('tableWrapper').style.display = 'flex';
+        })
+        .catch(() => {});
+}
+
+function renderRows(rows) {
+    rows.sort((a, b) => a.partner.localeCompare(b.partner, 'es'));
+    const customerColors = {};
+    let colorIndex = 0;
+    rows.forEach(r => {
+        if (!customerColors[r.partner]) {
+            customerColors[r.partner] = CUSTOMER_PALETTE[colorIndex % CUSTOMER_PALETTE.length];
+            colorIndex++;
+        }
+    });
+
+    const tbody = document.getElementById('tableBody');
+    tbody.innerHTML = rows.map(r => {
+        const bg = customerColors[r.partner];
+        const bgS = 'style="background-color:' + bg + '"';
+        return '<tr>' +
+            '<td ' + bgS + '><strong>' + escHtml(r.partner) + '</strong><br><small class="text-muted">' + escHtml(r.order_name) + '</small></td>' +
+            '<td ' + bgS + ' class="text-center fw-bold">' + escHtml(r.qty_to_manuf) + '</td>' +
+            '<td ' + bgS + ' class="text-center">' + Number(r.ordered_qty).toLocaleString('es-MX') + '</td>' +
+            '<td ' + bgS + '>' + escHtml(r.product_name) + '</td>' +
+            '<td ' + bgS + '>' + escHtml(r.color) + '</td>' +
+            '<td ' + bgS + '>' + escHtml(r.notes) + '</td>' +
+            '<td ' + bgS + ' class="text-nowrap">' + escHtml(r.date) + '</td>' +
+        '</tr>';
+    }).join('');
+}
+
+function escHtml(s) {
+    if (!s) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>

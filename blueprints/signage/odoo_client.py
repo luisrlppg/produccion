@@ -154,6 +154,7 @@ def get_sales_orders(models, uid):
         for l in lines_by_order.get(o['id'], []):
             pid = l['product_id'][0] if l.get('product_id') else None
             lines.append({
+                'line_id':        l['id'],
                 'product_name':   l['product_id'][1] if l.get('product_id') else '—',
                 'ordered_qty':    l['product_uom_qty'],
                 'delivered_qty':  l['qty_delivered'],

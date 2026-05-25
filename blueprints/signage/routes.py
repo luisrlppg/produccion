@@ -45,6 +45,22 @@ _sse_lock = threading.Lock()
 
 stock_monitor = StockMonitor()
 
+# ── Persistencia de ventas consolidadas ────────────────────────────────────────
+_BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+SALES_CONSOLIDATED_FILE = os.path.join(_BASE_DIR, 'data', 'sales_consolidated.json')
+
+
+def _load_sales_consolidated() -> dict:
+    if os.path.exists(SALES_CONSOLIDATED_FILE):
+        with open(SALES_CONSOLIDATED_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return {}
+
+
+def _save_sales_consolidated(data: dict):
+    with open(SALES_CONSOLIDATED_FILE, 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+
 
 def _push_to_displays(payload: dict):
     """Envía payload a todos los clientes SSE conectados."""
@@ -194,6 +210,109 @@ def sales_data():
         return jsonify({'orders': orders, 'now': datetime.now().strftime('%d/%m/%Y %H:%M:%S')})
     except Exception as e:
         return jsonify({'error': f'Error conectando a Odoo: {e}'}), 500
+
+
+# ── Ventas Consolidadas ────────────────────────────────────────────────────────
+
+@signage_bp.route('/consolidated-sales')
+@login_required
+def consolidated_sales():
+    """Página de ventas consolidadas en formato tabla."""
+    return render_template('signage/consolidated_sales.html')
+
+
+def _get_consolidated_rows():
+    """Construye la lista de filas (Odoo + persistencia). Retorna (rows, error_msg)."""
+    try:
+        models, uid = odoo_client.connect()
+        orders = odoo_client.get_sales_orders(models, uid)
+    except Exception as e:
+        return None, f'Error conectando a Odoo: {e}'
+
+    rows = []
+    for o in orders:
+        if o.get('delivery_status') == 'full':
+            continue
+        for line in o['lines']:
+            rows.append({
+                'line_id':       line['line_id'],
+                'partner':       o['partner'],
+                'order_name':    o['name'],
+                'product_name':  line['product_name'],
+                'ordered_qty':   line['ordered_qty'],
+                'qty_to_manuf':  line['ordered_qty'],
+                'date':          o['date'],
+            })
+
+    persisted = _load_sales_consolidated()
+    for row in rows:
+        key = str(row['line_id'])
+        if key in persisted:
+            row['color'] = persisted[key].get('color', '')
+            row['notes'] = persisted[key].get('notes', '')
+            row['qty_to_manuf'] = persisted[key].get('qty_to_manuf', row['qty_to_manuf'])
+        else:
+            row['color'] = ''
+            row['notes'] = ''
+
+    return rows, None
+
+
+@signage_bp.route('/consolidated-sales-data')
+@login_required
+def consolidated_sales_data():
+    """Devuelve líneas de ventas aplanadas con color/notas persistidos."""
+    rows, error = _get_consolidated_rows()
+    if error:
+        return jsonify({'error': error}), 500
+    return jsonify({
+        'rows': rows,
+        'total': len(rows),
+        'now': datetime.now().strftime('%d/%m/%Y %H:%M:%S'),
+    })
+
+
+@signage_bp.route('/consolidated-sales-save', methods=['POST'])
+@login_required
+def consolidated_sales_save():
+    """Guarda color/notas de una línea de venta."""
+    data = request.get_json(force=True)
+    line_id = data.get('line_id')
+    if not line_id:
+        return jsonify({'success': False, 'error': 'line_id requerido'}), 400
+
+    persisted = _load_sales_consolidated()
+    key = str(line_id)
+    entry = persisted.get(key, {})
+    entry['color'] = data.get('color', entry.get('color', ''))
+    entry['notes'] = data.get('notes', entry.get('notes', ''))
+    if 'qty_to_manuf' in data:
+        entry['qty_to_manuf'] = data['qty_to_manuf']
+    persisted[key] = entry
+    _save_sales_consolidated(persisted)
+
+    return jsonify({'success': True})
+
+
+# ── Vista pública (display) de ventas consolidadas ──────────────────────────────
+
+@signage_bp.route('/consolidated-display')
+def consolidated_display():
+    """Pantalla pública — sin autenticación, solo lectura."""
+    return render_template('signage/consolidated_display.html')
+
+
+@signage_bp.route('/consolidated-display-data')
+def consolidated_display_data():
+    """Endpoint público con los mismos datos (solo lectura)."""
+    rows, error = _get_consolidated_rows()
+    if error:
+        return jsonify({'error': error}), 500
+    return jsonify({
+        'rows': rows,
+        'total': len(rows),
+        'now': datetime.now().strftime('%d/%m/%Y %H:%M:%S'),
+    })
 
 
 # ── API de stock ───────────────────────────────────────────────────────────────
