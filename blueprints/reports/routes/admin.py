@@ -443,25 +443,32 @@ def download_report_csv(report_type):
         flash('Tipo de reporte inválido', 'error')
         return redirect(url_for('reportes'))
 
-    if report_type == 'production':
-        content  = export_production_csv()
-        filename = 'production_reports.csv'
-    elif report_type == 'personal':
-        content  = export_simple_csv('personal_reports')
-        filename = 'personal_reports.csv'
-    else:
-        content  = export_simple_csv('company_reports')
-        filename = 'company_reports.csv'
+    try:
+        if report_type == 'production':
+            content  = export_production_csv()
+            filename = 'production_reports.csv'
+        elif report_type == 'personal':
+            content  = export_simple_csv('personal_reports')
+            filename = 'personal_reports.csv'
+        else:
+            content  = export_simple_csv('company_reports')
+            filename = 'company_reports.csv'
 
-    if not content.strip():
-        flash('No hay reportes disponibles para descargar', 'error')
+        if not content.strip():
+            flash('No hay reportes disponibles para descargar', 'error')
+            return redirect(url_for('reportes'))
+
+        return Response(
+            content,
+            mimetype='text/csv; charset=utf-8',
+            headers={
+                'Content-Disposition': f'attachment; filename={filename}',
+                'Content-Type': 'text/csv; charset=utf-8',
+            },
+        )
+    except Exception as e:
+        flash(f'Error al generar el CSV: {str(e)}', 'error')
         return redirect(url_for('reportes'))
-
-    return Response(
-        content.encode('utf-8'),
-        mimetype='text/csv',
-        headers={'Content-Disposition': f'attachment; filename={filename}'},
-    )
 
 
 # ── Helpers privados ───────────────────────────────────────────────────────────

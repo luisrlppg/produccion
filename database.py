@@ -236,6 +236,8 @@ def export_production_csv() -> str:
     from blueprints.reports.production_sections import PRODUCTION_SECTIONS
     rows = get_all_production_reports()
     buf  = io.StringIO()
+    # BOM UTF-8 para que Excel reconozca el encoding correctamente
+    buf.write('\ufeff')
     w    = csv.writer(buf)
     # Header dinámico
     section_labels = [s['csv_label'] for s in PRODUCTION_SECTIONS]
@@ -266,6 +268,8 @@ def export_production_csv() -> str:
 def export_simple_csv(table: str) -> str:
     rows = get_simple_reports(table)
     buf  = io.StringIO()
+    # BOM UTF-8 para que Excel reconozca el encoding correctamente
+    buf.write('\ufeff')
     w    = csv.writer(buf)
     w.writerow(SIMPLE_CSV_HEADER)
     for r in rows:
