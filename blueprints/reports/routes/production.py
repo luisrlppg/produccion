@@ -66,14 +66,9 @@ def submit_report():
     quantity_persons = int(request.form['quantity_persons'].strip())
     additional_notes = request.form.get('additional_notes', '').strip()
 
-    # Máquinas
-    machine_data = []
-    for i in range(1, 4):
-        qty        = request.form.get(f'machine{i}_quantity', '').strip()
-        brush_type = request.form.get(f'machine{i}_brush_type', '').strip()
-        color      = request.form.get(f'machine{i}_color', '').strip()
-        if qty:
-            machine_data.append([i, qty, brush_type, color])
+    # Máquinas (JSON: [{"maquina":1, "cantidad":100, "tipo":"straight", "color":"black"}, ...])
+    maquinas_raw = request.form.get('maquinas', '')
+    machine_data = json.loads(maquinas_raw) if maquinas_raw else []
 
     def _parse_json_field(field):
         raw = request.form.get(field, '')
@@ -112,10 +107,7 @@ def submit_report():
     total_production = sum(_sum(section_data[s['key']]) for s in PRODUCTION_SECTIONS)
     # Totales individuales por sección para estadísticas
     section_totals = {s['key']: _sum(section_data[s['key']]) for s in PRODUCTION_SECTIONS}
-    try:
-        total_machines = sum(int(m[1]) for m in machine_data)
-    except (ValueError, IndexError):
-        total_machines = 0
+    total_machines = sum(int(m['cantidad']) for m in machine_data)
 
     hours = _shift_hours(job_shift)
     try:
@@ -123,13 +115,24 @@ def submit_report():
     except ZeroDivisionError:
         production_per_person_hour = 0
 
-    # Máquinas como campos individuales
-    machines = {str(m[0]): m for m in machine_data}
-    def mf(num):
-        m = machines.get(str(num))
-        return (int(m[1]), get_text(m[2]), get_text(m[3])) if m else (0, '', '')
+    # Preparar JSON de máquinas (traducir tipo/color a labels)
+    maquinas_serialized = json.dumps([
+        {
+            'maquina': m['maquina'],
+            'cantidad': int(m['cantidad']),
+            'tipo': get_text(m['tipo']),
+            'color': get_text(m['color']),
+        }
+        for m in machine_data
+    ], ensure_ascii=False)
 
-    m1, m2, m3 = mf(1), mf(2), mf(3)
+    # Columnas viejas: primer valor de cada máquina o 0
+    def _first_for_machine(num):
+        for m in machine_data:
+            if m['maquina'] == num:
+                return (int(m['cantidad']), get_text(m['tipo']), get_text(m['color']))
+        return (0, '', '')
+    m1, m2, m3 = _first_for_machine(1), _first_for_machine(2), _first_for_machine(3)
 
     # ── Guardar en SQLite ──────────────────────────────────────────────────────
     report_id = insert_production_report(
@@ -149,6 +152,7 @@ def submit_report():
         produccion_por_persona_hora=production_per_person_hour,
         notas=additional_notes,
         timestamp=timestamp,
+        maquinas=maquinas_serialized,
     )
 
     # ── Guardar detalle en JSON ────────────────────────────────────────────────

@@ -180,19 +180,42 @@
             text-transform: uppercase;
             letter-spacing: .4px;
         }
-        .machine-fields {
-            display: grid;
-            grid-template-columns: 80px 1fr 1fr;
-            gap: 10px;
-            align-items: end;
+        .machine-rows-container {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
         }
-        .machine-field-sm label,
-        .machine-field-md label {
+        .machine-row {
+            display: grid;
+            grid-template-columns: 70px 1fr 1fr 48px;
+            gap: 8px;
+            align-items: end;
+            background: #f8f9fa;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 10px 12px;
+        }
+        .machine-row label {
             display: block;
-            font-size: .8rem;
+            font-size: .78rem;
             font-weight: 600;
             color: #718096;
-            margin-bottom: 4px;
+            margin-bottom: 3px;
+        }
+        .machine-row input,
+        .machine-row select {
+            width: 100%;
+            padding: 6px 8px;
+            border: 1px solid #cbd5e0;
+            border-radius: 6px;
+            font-size: .88rem;
+            background: #fff;
+        }
+        .machine-remove {
+            align-self: end;
+            padding: 6px 10px;
+            height: 34px;
+            width: 100%;
         }
 
         /* ── Filas de productos / entregas ───────────────────────────────── */
@@ -248,12 +271,15 @@
             /* 3 columnas → 1 columna en móvil */
             .grid-3col { grid-template-columns: 1fr; gap: 0; }
 
-            /* Máquinas: cantidad ocupa fila completa, tipo y color en 2 col */
-            .machine-fields {
-                grid-template-columns: 1fr 1fr;
-                grid-template-rows: auto auto;
+            /* Máquinas: cada fila se apila verticalmente */
+            .machine-row {
+                grid-template-columns: 1fr 48px;
+                grid-template-rows: auto auto auto;
             }
-            .machine-field-sm { grid-column: 1 / -1; }
+            .machine-row__qty   { grid-column: 1 / -1; }
+            .machine-row__type  { grid-column: 1; }
+            .machine-row__color { grid-column: 1; }
+            .machine-remove { grid-column: 2; grid-row: 2 / 4; height: auto; }
 
             /* Filas de productos: nombre arriba, cantidad + botón abajo */
             .prod-row {

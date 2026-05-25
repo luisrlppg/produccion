@@ -4,6 +4,7 @@ database.py — capa de acceso a datos SQLite para PPG Unified.
 
 import csv
 import io
+import json
 import os
 import sqlite3
 from contextlib import contextmanager
@@ -70,9 +71,68 @@ def run_migrations():
         conn.close()
 
 
+def _migrate_old_machine_data():
+    """Migra datos de columnas viejas (maquina1_cantidad, etc.) a la columna maquinas JSON."""
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT id, maquina1_cantidad, maquina1_tipo, maquina1_color, "
+            "maquina2_cantidad, maquina2_tipo, maquina2_color, "
+            "maquina3_cantidad, maquina3_tipo, maquina3_color "
+            "FROM production_reports WHERE maquinas IS NULL OR maquinas = ''"
+        ).fetchall()
+        for r in rows:
+            machines = []
+            for i in range(1, 4):
+                qty = r[f'maquina{i}_cantidad']
+                if qty and int(qty) > 0:
+                    machines.append({
+                        'maquina': i,
+                        'cantidad': int(qty),
+                        'tipo': r[f'maquina{i}_tipo'] or '',
+                        'color': r[f'maquina{i}_color'] or '',
+                    })
+            db.execute(
+                "UPDATE production_reports SET maquinas = ? WHERE id = ?",
+                (json.dumps(machines, ensure_ascii=False), r['id'])
+            )
+    if rows:
+        print(f'[DB] Migradas {len(rows)} filas a columna maquinas')
+
+
+def parse_maquinas(report: dict) -> list[dict]:
+    """Lee la columna `maquinas` (JSON) y retorna lista de dicts.
+    Si está vacía, retrocede a las columnas viejas (maquina1_cantidad, etc.)"""
+    raw = report.get('maquinas', '') or ''
+    if raw:
+        try:
+            return json.loads(raw)
+        except (json.JSONDecodeError, TypeError):
+            pass
+    machines = []
+    for i in range(1, 4):
+        qty = report.get(f'maquina{i}_cantidad') or 0
+        if qty and int(qty) > 0:
+            machines.append({
+                'maquina': i,
+                'cantidad': int(qty),
+                'tipo': report.get(f'maquina{i}_tipo', '') or '',
+                'color': report.get(f'maquina{i}_color', '') or '',
+            })
+    return machines
+
+
+def format_maquinas_text(machines: list[dict]) -> str:
+    """Formatea lista de máquinas a texto plano para CSV."""
+    return ' | '.join(
+        f'M{m["maquina"]}: {m["cantidad"]} {m["tipo"]} {m["color"]}'
+        for m in machines
+    )
+
+
 def init_db(app):
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     run_migrations()
+    _migrate_old_machine_data()
     print(f'[DB] Lista en {DB_PATH}')
 
 
@@ -83,11 +143,12 @@ def insert_production_report(
     maquina1_cantidad, maquina1_tipo, maquina1_color,
     maquina2_cantidad, maquina2_tipo, maquina2_color,
     maquina3_cantidad, maquina3_tipo, maquina3_color,
-    section_data: dict,   # {'ensamble': '...', 'ensartado': '...', ...}
-    section_totals: dict, # {'ensamble': 120, 'ensartado': 80, ...}
+    section_data: dict,
+    section_totals: dict,
     entregas,
     produccion_personal, produccion_maquinas, produccion_total,
     produccion_por_persona_hora, notas, timestamp,
+    maquinas='',
 ) -> int:
     """Inserta un reporte de producción y retorna el ID generado."""
     from blueprints.reports.production_sections import PRODUCTION_SECTIONS, SECTION_KEYS
@@ -108,7 +169,8 @@ def insert_production_report(
                 maquina3_cantidad, maquina3_tipo, maquina3_color,
                 {section_cols}, {total_cols}, entregas,
                 produccion_personal, produccion_maquinas, produccion_total,
-                produccion_por_persona_hora, notas, timestamp
+                produccion_por_persona_hora, notas, timestamp,
+                maquinas
             ) VALUES (
                 ?,?,?,?,
                 ?,?,?,
@@ -116,7 +178,8 @@ def insert_production_report(
                 ?,?,?,
                 {section_placeholders}, {total_placeholders}, ?,
                 ?,?,?,
-                ?,?,?
+                ?,?,?,
+                ?
             )
         """, (
             nombre, turno, fecha, trabajadores,
@@ -126,6 +189,7 @@ def insert_production_report(
             *section_vals, *total_vals, entregas,
             produccion_personal, produccion_maquinas, produccion_total,
             produccion_por_persona_hora, notas, timestamp,
+            maquinas,
         ))
         return cur.lastrowid
 
@@ -249,10 +313,12 @@ def export_production_csv() -> str:
         *section_labels, 'Entregas',
         'Produccion Personal', 'Produccion Maquinas', 'Produccion Total',
         'Produccion por Persona por Hora', 'Notas Adicionales', 'Fecha y Hora de Envio',
+        'Detalle Maquinas',
     ]
     w.writerow(header)
     for r in rows:
         section_vals = [r.get(s['key'], '') for s in PRODUCTION_SECTIONS]
+        maquinas_text = format_maquinas_text(parse_maquinas(r))
         w.writerow([
             r['id'], r['nombre'], r['turno'], r['fecha'], r['trabajadores'],
             r['maquina1_cantidad'], r['maquina1_tipo'], r['maquina1_color'],
@@ -261,6 +327,7 @@ def export_production_csv() -> str:
             *section_vals, r['entregas'],
             r['produccion_personal'], r['produccion_maquinas'], r['produccion_total'],
             r['produccion_por_persona_hora'], r['notas'], r['timestamp'],
+            maquinas_text,
         ])
     return buf.getvalue()
 

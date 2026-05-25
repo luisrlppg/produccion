@@ -4,40 +4,49 @@
     {% for i in [1, 2, 3] %}
     <div class="machine-block">
         <div class="machine-label">{{ get_text('machine_' ~ i) }}</div>
-        <div class="machine-fields">
-            <div class="machine-field-sm">
-                <label for="machine{{ i }}_quantity">{{ get_text('quantity') }}</label>
-                <input type="text" inputmode="numeric" pattern="[0-9]*"
-                       id="machine{{ i }}_quantity" name="machine{{ i }}_quantity" placeholder="0">
-            </div>
-            <div class="machine-field-md">
-                <label for="machine{{ i }}_brush_type">{{ get_text('brush_type') }}</label>
-                <select id="machine{{ i }}_brush_type" name="machine{{ i }}_brush_type">
-                    <option value="">Seleccionar</option>
-                    <option value="straight">Recto</option>
-                    <option value="spiral">Espiral</option>
-                    <option value="bullet">Bala</option>
-                    <option value="mini_bullet">Balita</option>
-                    <option value="pine">Pino</option>
-                    <option value="peanut">Cacahuate</option>
-                    <option value="balloon">Globo</option>
-                </select>
-            </div>
-            <div class="machine-field-md">
-                <label for="machine{{ i }}_color">{{ get_text('color') }}</label>
-                <select id="machine{{ i }}_color" name="machine{{ i }}_color">
-                    <option value="">Seleccionar</option>
-                    <option value="black">Negro</option>
-                    <option value="brown">Cafe</option>
-                    <option value="blue">Azul</option>
-                    <option value="green">Verde</option>
-                    <option value="turquoise">Turquesa</option>
-                    <option value="pink">Rosa</option>
-                    <option value="purple">Morado</option>
-                    <option value="transparent">Transparente</option>
-                </select>
+        <div id="machine{{ i }}_rows" class="machine-rows-container">
+            <div class="machine-row" data-machine="{{ i }}">
+                <div class="machine-row__qty">
+                    <label>{{ get_text('quantity') }}</label>
+                    <input type="text" inputmode="numeric" pattern="[0-9]*"
+                           class="machine-qty machine{{ i }}-qty" placeholder="0">
+                </div>
+                <div class="machine-row__type">
+                    <label>{{ get_text('brush_type') }}</label>
+                    <select class="machine-type machine{{ i }}-type">
+                        <option value="">Seleccionar</option>
+                        <option value="straight">Recto</option>
+                        <option value="spiral">Espiral</option>
+                        <option value="bullet">Bala</option>
+                        <option value="mini_bullet">Balita</option>
+                        <option value="pine">Pino</option>
+                        <option value="peanut">Cacahuate</option>
+                        <option value="balloon">Globo</option>
+                    </select>
+                </div>
+                <div class="machine-row__color">
+                    <label>{{ get_text('color') }}</label>
+                    <select class="machine-color machine{{ i }}-color">
+                        <option value="">Seleccionar</option>
+                        <option value="black">Negro</option>
+                        <option value="brown">Cafe</option>
+                        <option value="blue">Azul</option>
+                        <option value="green">Verde</option>
+                        <option value="turquoise">Turquesa</option>
+                        <option value="pink">Rosa</option>
+                        <option value="purple">Morado</option>
+                        <option value="transparent">Transparente</option>
+                    </select>
+                </div>
+                <button type="button" onclick="removeMachineRow(this, {{ i }})"
+                        class="btn-remove prod-row-remove machine-remove" aria-label="Eliminar">×</button>
             </div>
         </div>
+        <button type="button" onclick="addMachineRow({{ i }})" class="btn btn-success btn-add-row">
+            + Agregar produccion
+        </button>
     </div>
     {% endfor %}
+
+    <input type="hidden" id="maquinas" name="maquinas" value="">
 </div>

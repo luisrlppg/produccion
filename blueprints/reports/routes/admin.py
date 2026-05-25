@@ -11,7 +11,8 @@ from database import (get_production_reports, get_production_dates,
                       get_all_production_reports, get_simple_reports,
                       export_production_csv, export_simple_csv,
                       get_production_report_by_id, update_production_report,
-                      delete_production_report)
+                      delete_production_report, parse_maquinas,
+                      format_maquinas_text)
 from utils import (get_text, read_production_details_json,
                    _format_products, _format_deliveries,
                    save_production_details_json)
@@ -177,10 +178,10 @@ def production_stats():
     brush_type_totals  = defaultdict(int)
     brush_color_totals = defaultdict(int)
     for r in reports:
-        for i in range(1, 4):
-            qty   = _int(r.get(f'maquina{i}_cantidad', 0))
-            btype = (r.get(f'maquina{i}_tipo') or '').strip()
-            color = (r.get(f'maquina{i}_color') or '').strip()
+        for m in parse_maquinas(r):
+            qty   = _int(m.get('cantidad', 0))
+            btype = (m.get('tipo') or '').strip()
+            color = (m.get('color') or '').strip()
             if qty > 0:
                 if btype:
                     brush_type_totals[btype] += qty
@@ -296,13 +297,8 @@ def edit_report(report_id):
         quantity_persons = int(request.form['quantity_persons'].strip())
         additional_notes = request.form.get('additional_notes', '').strip()
 
-        machine_data = []
-        for i in range(1, 4):
-            qty        = request.form.get(f'machine{i}_quantity', '').strip()
-            brush_type = request.form.get(f'machine{i}_brush_type', '').strip()
-            color      = request.form.get(f'machine{i}_color', '').strip()
-            if qty:
-                machine_data.append([i, qty, brush_type, color])
+        maquinas_raw = request.form.get('maquinas', '')
+        machine_data = _json.loads(maquinas_raw) if maquinas_raw else []
 
         def _parse_json_field(field):
             raw = request.form.get(field, '')
@@ -337,10 +333,7 @@ def edit_report(report_id):
             return total
 
         total_production = sum(_sum(section_data[s['key']]) for s in PRODUCTION_SECTIONS)
-        try:
-            total_machines = sum(int(m[1]) for m in machine_data)
-        except (ValueError, IndexError):
-            total_machines = 0
+        total_machines = sum(int(m['cantidad']) for m in machine_data)
 
         from blueprints.reports.routes.production import _shift_hours
         hours = _shift_hours(job_shift)
@@ -349,11 +342,17 @@ def edit_report(report_id):
         except ZeroDivisionError:
             production_per_person_hour = 0
 
-        machines = {str(m[0]): m for m in machine_data}
-        def mf(num):
-            m = machines.get(str(num))
-            return (int(m[1]), _gt(m[2]), _gt(m[3])) if m else (0, '', '')
-        m1, m2, m3 = mf(1), mf(2), mf(3)
+        maquinas_serialized = _json.dumps([
+            {'maquina': m['maquina'], 'cantidad': int(m['cantidad']), 'tipo': _gt(m['tipo']), 'color': _gt(m['color'])}
+            for m in machine_data
+        ], ensure_ascii=False)
+
+        def _first_for_machine(num):
+            for m in machine_data:
+                if m['maquina'] == num:
+                    return (int(m['cantidad']), _gt(m['tipo']), _gt(m['color']))
+            return (0, '', '')
+        m1, m2, m3 = _first_for_machine(1), _first_for_machine(2), _first_for_machine(3)
 
         update_production_report(
             report_id,
@@ -371,6 +370,7 @@ def edit_report(report_id):
             produccion_total=total_production + total_machines,
             produccion_por_persona_hora=production_per_person_hour,
             notas=additional_notes,
+            maquinas=maquinas_serialized,
         )
 
         save_production_details_json(
@@ -476,6 +476,7 @@ def download_report_csv(report_type):
 def _db_row_to_csv_dict(r: dict) -> dict:
     """Convierte una fila de la DB al formato de dict que espera el template."""
     from blueprints.reports.production_sections import PRODUCTION_SECTIONS
+    maquinas_list = parse_maquinas(r)
     base = {
         'ID Reporte':               r['id'],
         'Nombre':                   r['nombre'],
@@ -491,6 +492,8 @@ def _db_row_to_csv_dict(r: dict) -> dict:
         'Maquina 3 Cantidad':       r['maquina3_cantidad'],
         'Maquina 3 Tipo de Cepillo': r['maquina3_tipo'],
         'Maquina 3 Color':          r['maquina3_color'],
+        '_maquinas_parsed':         maquinas_list,
+        'Detalle Maquinas':         format_maquinas_text(maquinas_list),
     }
     for s in PRODUCTION_SECTIONS:
         base[s['csv_label']] = r.get(s['key'], '')

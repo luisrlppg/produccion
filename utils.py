@@ -177,6 +177,7 @@ def build_production_email_body_from_db(report: dict,
     Flujo: guardar en DB → leer de DB → llamar esta función → enviar.
     """
     from blueprints.reports.production_sections import PRODUCTION_SECTIONS
+    from database import parse_maquinas
 
     report_id              = report['id']
     name                   = report['nombre']
@@ -191,14 +192,10 @@ def build_production_email_body_from_db(report: dict,
     additional_notes       = report.get('notas', '')
     entregas_str           = report.get('entregas', '')
 
-    # Máquinas desde columnas de la DB
+    # Máquinas desde columna JSON (con fallback a columnas viejas)
     machine_rows = []
-    for i in range(1, 4):
-        qty   = report.get(f'maquina{i}_cantidad') or 0
-        tipo  = report.get(f'maquina{i}_tipo') or ''
-        color = report.get(f'maquina{i}_color') or ''
-        if qty:
-            machine_rows.append([f'Máquina {i}', qty, tipo, color])
+    for m in parse_maquinas(report):
+        machine_rows.append([f'Máquina {m["maquina"]}', m['cantidad'], m['tipo'], m['color']])
 
     # ── Helpers HTML ──────────────────────────────────────────────────────────
     def kpi(label, value, color):

@@ -51,47 +51,7 @@
     </div>
 
     {# ── Máquinas ── #}
-    <div class="section-card">
-        <h3>{{ get_text('mascara_brush_production') }}</h3>
-        {% for i in [1, 2, 3] %}
-        {% set qty   = report['maquina' ~ i ~ '_cantidad'] %}
-        {% set tipo  = report['maquina' ~ i ~ '_tipo'] %}
-        {% set color = report['maquina' ~ i ~ '_color'] %}
-        <div class="machine-block">
-            <div class="machine-label">{{ get_text('machine_' ~ i) }}</div>
-            <div class="machine-fields">
-                <div class="machine-field-sm">
-                    <label>{{ get_text('quantity') }}</label>
-                    <input type="text" inputmode="numeric" pattern="[0-9]*"
-                           name="machine{{ i }}_quantity"
-                           value="{{ qty if qty else '' }}" placeholder="0">
-                </div>
-                <div class="machine-field-md">
-                    <label>{{ get_text('brush_type') }}</label>
-                    <select name="machine{{ i }}_brush_type">
-                        <option value="">Seleccionar</option>
-                        {% for val, label in [('straight','Recto'),('spiral','Espiral'),('bullet','Bala'),
-                                              ('mini_bullet','Balita'),('pine','Pino'),
-                                              ('peanut','Cacahuate'),('balloon','Globo')] %}
-                        <option value="{{ val }}" {% if tipo == label %}selected{% endif %}>{{ label }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="machine-field-md">
-                    <label>{{ get_text('color') }}</label>
-                    <select name="machine{{ i }}_color">
-                        <option value="">Seleccionar</option>
-                        {% for val, label in [('black','Negro'),('brown','Cafe'),('blue','Azul'),
-                                              ('green','Verde'),('turquoise','Turquesa'),('pink','Rosa'),
-                                              ('purple','Morado'),('transparent','Transparente')] %}
-                        <option value="{{ val }}" {% if color == label %}selected{% endif %}>{{ label }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-            </div>
-        </div>
-        {% endfor %}
-    </div>
+    {% include 'reports/partials/production/machines.html' %}
 
     {# ── Ensamble ── #}
     <div class="section-card">
@@ -247,11 +207,39 @@
 {% include 'reports/partials/production/scripts.html' %}
 
 <script>
-// Pre-llenar deliveries desde el reporte existente
+// Mapa label → value key para selects de máquinas
+const MACHINE_LABEL_MAP = {
+    'Recto': 'straight', 'Espiral': 'spiral', 'Bala': 'bullet',
+    'Balita': 'mini_bullet', 'Pino': 'pine', 'Cacahuate': 'peanut', 'Globo': 'balloon',
+    'Negro': 'black', 'Cafe': 'brown', 'Azul': 'blue', 'Verde': 'green',
+    'Turquesa': 'turquoise', 'Rosa': 'pink', 'Morado': 'purple', 'Transparente': 'transparent',
+};
+
+function labelToVal(label) {
+    return MACHINE_LABEL_MAP[label] || label;
+}
+
+const TYPE_OPTIONS = [
+    ['straight', 'Recto'], ['spiral', 'Espiral'], ['bullet', 'Bala'],
+    ['mini_bullet', 'Balita'], ['pine', 'Pino'], ['peanut', 'Cacahuate'], ['balloon', 'Globo'],
+];
+const COLOR_OPTIONS = [
+    ['black', 'Negro'], ['brown', 'Cafe'], ['blue', 'Azul'], ['green', 'Verde'],
+    ['turquoise', 'Turquesa'], ['pink', 'Rosa'], ['purple', 'Morado'], ['transparent', 'Transparente'],
+];
+
+function machineSelectHtml(options, selectedVal) {
+    let html = '<option value="">Seleccionar</option>';
+    options.forEach(([val, label]) => {
+        html += `<option value="${val}" ${selectedVal === val ? 'selected' : ''}>${label}</option>`;
+    });
+    return html;
+}
+
 document.addEventListener('DOMContentLoaded', function () {
+    // Pre-llenar deliveries
     const raw = {{ report.entregas | tojson }};
     if (raw) {
-        // Parsear "Cliente - Producto, Cliente2 - Producto2"
         const container = document.getElementById('delivery_rows');
         container.innerHTML = '';
         raw.split(', ').forEach(entry => {
@@ -274,6 +262,61 @@ document.addEventListener('DOMContentLoaded', function () {
             container.appendChild(row);
         });
     }
+
+    // Pre-llenar máquinas
+    let machines = [];
+    {% if report.maquinas and report.maquinas != '' %}
+        try {
+            machines = JSON.parse({{ report.maquinas | tojson }});
+            // Las etiquetas vienen como display labels, convertir a value keys
+            machines.forEach(m => {
+                m.tipo = labelToVal(m.tipo);
+                m.color = labelToVal(m.color);
+            });
+        } catch(e) {}
+    {% else %}
+        {% for i in [1, 2, 3] %}
+        {% set qty = report['maquina' ~ i ~ '_cantidad'] %}
+        {% if qty and qty|int > 0 %}
+        machines.push({
+            maquina: {{ i }},
+            cantidad: {{ qty }},
+            tipo: labelToVal('{{ report["maquina" ~ i ~ "_tipo"] }}'),
+            color: labelToVal('{{ report["maquina" ~ i ~ "_color"] }}'),
+        });
+        {% endif %}
+        {% endfor %}
+    {% endif %}
+
+    [1, 2, 3].forEach(num => {
+        const entries = machines.filter(m => m.maquina === num);
+        const container = document.getElementById('machine' + num + '_rows');
+        container.innerHTML = '';
+        entries.forEach(m => {
+            const row = document.createElement('div');
+            row.className = 'machine-row';
+            row.setAttribute('data-machine', num);
+            row.innerHTML = `
+                <div class="machine-row__qty">
+                    <label>Cantidad</label>
+                    <input type="text" inputmode="numeric" pattern="[0-9]*"
+                           class="machine-qty machine${num}-qty" value="${m.cantidad}" placeholder="0">
+                </div>
+                <div class="machine-row__type">
+                    <label>Tipo de Cepillo</label>
+                    <select class="machine-type machine${num}-type">${machineSelectHtml(TYPE_OPTIONS, m.tipo)}</select>
+                </div>
+                <div class="machine-row__color">
+                    <label>Color</label>
+                    <select class="machine-color machine${num}-color">${machineSelectHtml(COLOR_OPTIONS, m.color)}</select>
+                </div>
+                <button type="button" onclick="removeMachineRow(this, ${num})"
+                        class="btn-remove prod-row-remove machine-remove" aria-label="Eliminar">×</button>`;
+            container.appendChild(row);
+            _bindMachineRowValidation(row, num);
+        });
+        if (entries.length === 0) addMachineRow(num);
+    });
 });
 </script>
 {% endblock %}

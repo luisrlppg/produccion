@@ -66,22 +66,17 @@
                     <div class="section">
                         <h5>Produccion de Maquinas</h5>
                         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;">
-                            {% set has_machine_data = false %}
-                            {% for i in range(1, 4) %}
-                                {% set qty = report.csv['Maquina ' + i|string + ' Cantidad'] %}
-                                {% set brush = report.csv['Maquina ' + i|string + ' Tipo de Cepillo'] %}
-                                {% set color = report.csv['Maquina ' + i|string + ' Color'] %}
-                                {% if qty %}
-                                    {% set has_machine_data = true %}
+                            {% set machines = report.csv['_maquinas_parsed'] %}
+                            {% if machines %}
+                                {% for m in machines %}
                                     <div class="machine-card">
-                                        <strong>Maquina {{ i }}</strong><br>
-                                        Cantidad: {{ qty }}<br>
-                                        Tipo: {{ brush }}<br>
-                                        Color: {{ color }}
+                                        <strong>Maquina {{ m.get('maquina', '?') }}</strong><br>
+                                        Cantidad: {{ m.get('cantidad', 0) }}<br>
+                                        Tipo: {{ m.get('tipo', '') }}<br>
+                                        Color: {{ m.get('color', '') }}
                                     </div>
-                                {% endif %}
-                            {% endfor %}
-                            {% if not has_machine_data %}
+                                {% endfor %}
+                            {% else %}
                                 <div style="grid-column: 1 / -1; text-align: center; color: #666; font-style: italic;">
                                     No hay datos de produccion de maquinas para este reporte
                                 </div>

@@ -49,7 +49,6 @@ function validateRequiredFields() {
             const hasName = nameEl.value.trim() !== '';
             const hasQty  = qtyEl.value.trim() !== '' && parseInt(qtyEl.value.trim()) > 0;
 
-            // Resetear bordes
             nameEl.style.borderColor = '#cbd5e0';
             qtyEl.style.borderColor  = '#cbd5e0';
 
@@ -65,40 +64,41 @@ function validateRequiredFields() {
         });
     });
 
-    // Validar máquinas: si se rellena cualquier campo, los otros dos son obligatorios
+    // Validar filas de máquinas
     [1, 2, 3].forEach(i => {
-        const qtyEl   = document.getElementById(`machine${i}_quantity`);
-        const typeEl  = document.getElementById(`machine${i}_brush_type`);
-        const colorEl = document.getElementById(`machine${i}_color`);
-        if (!qtyEl || !typeEl || !colorEl) return;
+        document.querySelectorAll(`#machine${i}_rows .machine-row`).forEach((row, idx) => {
+            const qtyEl   = row.querySelector('.machine-qty');
+            const typeEl  = row.querySelector('.machine-type');
+            const colorEl = row.querySelector('.machine-color');
+            if (!qtyEl || !typeEl || !colorEl) return;
 
-        const hasQty   = qtyEl.value.trim() !== '' && parseInt(qtyEl.value.trim()) > 0;
-        const hasType  = typeEl.value !== '';
-        const hasColor = colorEl.value !== '';
-        const anyFilled = hasQty || hasType || hasColor;
+            const hasQty   = qtyEl.value.trim() !== '' && parseInt(qtyEl.value.trim()) > 0;
+            const hasType  = typeEl.value !== '';
+            const hasColor = colorEl.value !== '';
+            const anyFilled = hasQty || hasType || hasColor;
 
-        // Resetear
-        qtyEl.style.borderColor   = '#cbd5e0';
-        typeEl.style.borderColor  = '#cbd5e0';
-        colorEl.style.borderColor = '#cbd5e0';
+            qtyEl.style.borderColor   = '#cbd5e0';
+            typeEl.style.borderColor  = '#cbd5e0';
+            colorEl.style.borderColor = '#cbd5e0';
 
-        if (anyFilled) {
-            if (!hasQty) {
-                qtyEl.style.borderColor = '#e53e3e';
-                errors.push(`Máquina ${i}: falta la cantidad`);
-                isValid = false;
+            if (anyFilled) {
+                if (!hasQty) {
+                    qtyEl.style.borderColor = '#e53e3e';
+                    errors.push(`Máquina ${i}, fila ${idx + 1}: falta la cantidad`);
+                    isValid = false;
+                }
+                if (!hasType) {
+                    typeEl.style.borderColor = '#e53e3e';
+                    errors.push(`Máquina ${i}, fila ${idx + 1}: falta el tipo de cepillo`);
+                    isValid = false;
+                }
+                if (!hasColor) {
+                    colorEl.style.borderColor = '#e53e3e';
+                    errors.push(`Máquina ${i}, fila ${idx + 1}: falta el color`);
+                    isValid = false;
+                }
             }
-            if (!hasType) {
-                typeEl.style.borderColor = '#e53e3e';
-                errors.push(`Máquina ${i}: falta el tipo de cepillo`);
-                isValid = false;
-            }
-            if (!hasColor) {
-                colorEl.style.borderColor = '#e53e3e';
-                errors.push(`Máquina ${i}: falta el color`);
-                isValid = false;
-            }
-        }
+        });
     });
 
     if (!isValid) alert('Por favor corrige los siguientes errores:\n\n' + errors.join('\n'));
@@ -125,47 +125,47 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 
-    // Bind validación en tiempo real a los campos de máquinas
+    // Bind validación en tiempo real a las filas de máquinas
     [1, 2, 3].forEach(i => {
-        const fields = [
-            document.getElementById(`machine${i}_quantity`),
-            document.getElementById(`machine${i}_brush_type`),
-            document.getElementById(`machine${i}_color`),
-        ];
-        fields.forEach(el => {
-            if (!el) return;
-            el.addEventListener('change', () => _checkMachine(i));
-            el.addEventListener('input',  () => _checkMachine(i));
+        document.querySelectorAll(`#machine${i}_rows .machine-row`).forEach(row => {
+            _bindMachineRowValidation(row, i);
         });
     });
 });
 
-// Feedback visual en tiempo real para máquinas
-function _checkMachine(i) {
-    const qtyEl   = document.getElementById(`machine${i}_quantity`);
-    const typeEl  = document.getElementById(`machine${i}_brush_type`);
-    const colorEl = document.getElementById(`machine${i}_color`);
+// Feedback visual en tiempo real para fila de máquina
+function _bindMachineRowValidation(row, machineNum) {
+    const qtyEl   = row.querySelector('.machine-qty');
+    const typeEl  = row.querySelector('.machine-type');
+    const colorEl = row.querySelector('.machine-color');
     if (!qtyEl || !typeEl || !colorEl) return;
 
-    const hasQty   = qtyEl.value.trim() !== '' && parseInt(qtyEl.value.trim()) > 0;
-    const hasType  = typeEl.value !== '';
-    const hasColor = colorEl.value !== '';
-    const anyFilled = hasQty || hasType || hasColor;
-    const allFilled = hasQty && hasType && hasColor;
+    function check() {
+        const hasQty   = qtyEl.value.trim() !== '' && parseInt(qtyEl.value.trim()) > 0;
+        const hasType  = typeEl.value !== '';
+        const hasColor = colorEl.value !== '';
+        const anyFilled = hasQty || hasType || hasColor;
+        const allFilled = hasQty && hasType && hasColor;
 
-    if (!anyFilled) {
-        qtyEl.style.borderColor   = '#cbd5e0';
-        typeEl.style.borderColor  = '#cbd5e0';
-        colorEl.style.borderColor = '#cbd5e0';
-    } else if (allFilled) {
-        qtyEl.style.borderColor   = '#48bb78';
-        typeEl.style.borderColor  = '#48bb78';
-        colorEl.style.borderColor = '#48bb78';
-    } else {
-        qtyEl.style.borderColor   = hasQty   ? '#48bb78' : '#e53e3e';
-        typeEl.style.borderColor  = hasType  ? '#48bb78' : '#e53e3e';
-        colorEl.style.borderColor = hasColor ? '#48bb78' : '#e53e3e';
+        if (!anyFilled) {
+            qtyEl.style.borderColor   = '#cbd5e0';
+            typeEl.style.borderColor  = '#cbd5e0';
+            colorEl.style.borderColor = '#cbd5e0';
+        } else if (allFilled) {
+            qtyEl.style.borderColor   = '#48bb78';
+            typeEl.style.borderColor  = '#48bb78';
+            colorEl.style.borderColor = '#48bb78';
+        } else {
+            qtyEl.style.borderColor   = hasQty   ? '#48bb78' : '#e53e3e';
+            typeEl.style.borderColor  = hasType  ? '#48bb78' : '#e53e3e';
+            colorEl.style.borderColor = hasColor ? '#48bb78' : '#e53e3e';
+        }
     }
+
+    qtyEl.addEventListener('input', check);
+    qtyEl.addEventListener('blur',  check);
+    typeEl.addEventListener('change', check);
+    colorEl.addEventListener('change', check);
 }
 
 // Feedback visual en tiempo real para una fila de producto
@@ -179,15 +179,12 @@ function _bindRowValidation(row, prefix) {
         const hasQty  = qtyEl.value.trim() !== '' && parseInt(qtyEl.value.trim()) > 0;
 
         if (!hasName && !hasQty) {
-            // Fila vacía — neutral
             nameEl.style.borderColor = '#cbd5e0';
             qtyEl.style.borderColor  = '#cbd5e0';
         } else if (hasName && hasQty) {
-            // Completa — verde
             nameEl.style.borderColor = '#48bb78';
             qtyEl.style.borderColor  = '#48bb78';
         } else {
-            // Incompleta — rojo en el campo que falta
             nameEl.style.borderColor = hasName ? '#48bb78' : '#e53e3e';
             qtyEl.style.borderColor  = hasQty  ? '#48bb78' : '#e53e3e';
         }
@@ -200,7 +197,7 @@ function _bindRowValidation(row, prefix) {
 }
 
 // ---------------------------------------------------------------------------
-// Generic product rows
+// Product rows
 // ---------------------------------------------------------------------------
 
 function addRow(prefix) {
@@ -234,6 +231,47 @@ function collectRows(prefix, hiddenId) {
         if (name && qty && parseInt(qty) > 0) products.push({ name, quantity: qty });
     });
     document.getElementById(hiddenId).value = JSON.stringify(products);
+}
+
+// ---------------------------------------------------------------------------
+// Machine rows
+// ---------------------------------------------------------------------------
+
+function addMachineRow(num) {
+    const container = document.getElementById('machine' + num + '_rows');
+    const template = container.querySelector('.machine-row');
+    const row = document.createElement('div');
+    row.className = 'machine-row';
+    row.setAttribute('data-machine', num);
+    row.innerHTML = template.innerHTML;
+    container.appendChild(row);
+    _bindMachineRowValidation(row, num);
+}
+
+function removeMachineRow(btn, num) {
+    const rows = document.querySelectorAll('#machine' + num + '_rows .machine-row');
+    if (rows.length > 1) btn.closest('.machine-row').remove();
+}
+
+function collectMachineData() {
+    const machines = [];
+    [1, 2, 3].forEach(num => {
+        document.querySelectorAll('#machine' + num + '_rows .machine-row').forEach(row => {
+            const qtyEl   = row.querySelector('.machine-qty');
+            const typeEl  = row.querySelector('.machine-type');
+            const colorEl = row.querySelector('.machine-color');
+            const qty     = qtyEl ? qtyEl.value.trim() : '';
+            if (qty && parseInt(qty) > 0) {
+                machines.push({
+                    maquina: num,
+                    cantidad: parseInt(qty),
+                    tipo: typeEl ? typeEl.value : '',
+                    color: colorEl ? colorEl.value : '',
+                });
+            }
+        });
+    });
+    document.getElementById('maquinas').value = JSON.stringify(machines);
 }
 
 // ---------------------------------------------------------------------------
@@ -278,9 +316,9 @@ function collectDeliveries() {
 
 document.querySelector('form').addEventListener('submit', function (e) {
     if (!validateRequiredFields()) { e.preventDefault(); return false; }
-    // Serializar todas las secciones dinámicamente
     const ALL_SECTIONS = {{ production_sections | tojson }};
     ALL_SECTIONS.forEach(s => collectRows(s.css_prefix, s.css_prefix + '_products'));
+    collectMachineData();
     collectDeliveries();
     const btn = this.querySelector('button[type="submit"]');
     if (btn) { btn.innerHTML = '⏳ Enviando...'; btn.disabled = true; }
