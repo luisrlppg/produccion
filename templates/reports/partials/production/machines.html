@@ -15,27 +15,12 @@
                     <label>{{ get_text('brush_type') }}</label>
                     <select class="machine-type machine{{ i }}-type">
                         <option value="">Seleccionar</option>
-                        <option value="straight">Recto</option>
-                        <option value="spiral">Espiral</option>
-                        <option value="bullet">Bala</option>
-                        <option value="mini_bullet">Balita</option>
-                        <option value="pine">Pino</option>
-                        <option value="peanut">Cacahuate</option>
-                        <option value="balloon">Globo</option>
                     </select>
                 </div>
                 <div class="machine-row__color">
                     <label>{{ get_text('color') }}</label>
                     <select class="machine-color machine{{ i }}-color">
                         <option value="">Seleccionar</option>
-                        <option value="black">Negro</option>
-                        <option value="brown">Cafe</option>
-                        <option value="blue">Azul</option>
-                        <option value="green">Verde</option>
-                        <option value="turquoise">Turquesa</option>
-                        <option value="pink">Rosa</option>
-                        <option value="purple">Morado</option>
-                        <option value="transparent">Transparente</option>
                     </select>
                 </div>
                 <button type="button" onclick="removeMachineRow(this, {{ i }})"
@@ -50,3 +35,47 @@
 
     <input type="hidden" id="maquinas" name="maquinas" value="">
 </div>
+
+<script>
+function populateSelect(select, options) {
+    const currentVal = select.value;
+    select.innerHTML = '<option value="">Seleccionar</option>';
+    options.forEach(function(opt) {
+        var el = document.createElement('option');
+        el.value = opt.key;
+        el.textContent = opt.label;
+        select.appendChild(el);
+    });
+    if (currentVal) select.value = currentVal;
+}
+
+function loadConfigOptions() {
+    var typeOpts, colorOpts;
+    Promise.all([
+        fetch('{{ url_for("panel.api_config_options", option_type="brush_type") }}').then(function(r) { return r.json(); }),
+        fetch('{{ url_for("panel.api_config_options", option_type="color") }}').then(function(r) { return r.json(); })
+    ]).then(function(results) {
+        typeOpts = results[0];
+        colorOpts = results[1];
+        document.querySelectorAll('.machine-type').forEach(function(sel) { populateSelect(sel, typeOpts); });
+        document.querySelectorAll('.machine-color').forEach(function(sel) { populateSelect(sel, colorOpts); });
+    }).catch(function() {
+        // Fallback: hardcoded options if API fails
+        var fallbackTypes = [
+            {key:'straight', label:'Recto'}, {key:'spiral', label:'Espiral'},
+            {key:'bullet', label:'Bala'}, {key:'mini_bullet', label:'Balita'},
+            {key:'pine', label:'Pino'}, {key:'peanut', label:'Cacahuate'}, {key:'balloon', label:'Globo'}
+        ];
+        var fallbackColors = [
+            {key:'black', label:'Negro'}, {key:'brown', label:'Cafe'},
+            {key:'blue', label:'Azul'}, {key:'green', label:'Verde'},
+            {key:'turquoise', label:'Turquesa'}, {key:'pink', label:'Rosa'},
+            {key:'purple', label:'Morado'}, {key:'transparent', label:'Transparente'}
+        ];
+        document.querySelectorAll('.machine-type').forEach(function(sel) { populateSelect(sel, fallbackTypes); });
+        document.querySelectorAll('.machine-color').forEach(function(sel) { populateSelect(sel, fallbackColors); });
+    });
+}
+
+document.addEventListener('DOMContentLoaded', loadConfigOptions);
+</script>

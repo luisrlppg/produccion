@@ -207,115 +207,138 @@
 {% include 'reports/partials/production/scripts.html' %}
 
 <script>
-// Mapa label → value key para selects de máquinas
-const MACHINE_LABEL_MAP = {
-    'Recto': 'straight', 'Espiral': 'spiral', 'Bala': 'bullet',
-    'Balita': 'mini_bullet', 'Pino': 'pine', 'Cacahuate': 'peanut', 'Globo': 'balloon',
-    'Negro': 'black', 'Cafe': 'brown', 'Azul': 'blue', 'Verde': 'green',
-    'Turquesa': 'turquoise', 'Rosa': 'pink', 'Morado': 'purple', 'Transparente': 'transparent',
-};
+var TYPE_OPTIONS = [];
+var COLOR_OPTIONS = [];
+var MACHINE_LABEL_MAP = {};
 
 function labelToVal(label) {
     return MACHINE_LABEL_MAP[label] || label;
 }
 
-const TYPE_OPTIONS = [
-    ['straight', 'Recto'], ['spiral', 'Espiral'], ['bullet', 'Bala'],
-    ['mini_bullet', 'Balita'], ['pine', 'Pino'], ['peanut', 'Cacahuate'], ['balloon', 'Globo'],
-];
-const COLOR_OPTIONS = [
-    ['black', 'Negro'], ['brown', 'Cafe'], ['blue', 'Azul'], ['green', 'Verde'],
-    ['turquoise', 'Turquesa'], ['pink', 'Rosa'], ['purple', 'Morado'], ['transparent', 'Transparente'],
-];
-
 function machineSelectHtml(options, selectedVal) {
     let html = '<option value="">Seleccionar</option>';
-    options.forEach(([val, label]) => {
-        html += `<option value="${val}" ${selectedVal === val ? 'selected' : ''}>${label}</option>`;
+    options.forEach(function(opt) {
+        var sel = selectedVal === opt[0] ? 'selected' : '';
+        html += '<option value="' + opt[0] + '" ' + sel + '>' + opt[1] + '</option>';
     });
     return html;
 }
 
+function buildMACHINELabelMap(typeOpts, colorOpts) {
+    var map = {};
+    typeOpts.forEach(function(o) { map[o.label] = o.key; });
+    colorOpts.forEach(function(o) { map[o.label] = o.key; });
+    return map;
+}
+
+function fetchConfigOptions() {
+    return Promise.all([
+        fetch('{{ url_for("panel.api_config_options", option_type="brush_type") }}').then(function(r) { return r.json(); }),
+        fetch('{{ url_for("panel.api_config_options", option_type="color") }}').then(function(r) { return r.json(); })
+    ]).then(function(results) {
+        TYPE_OPTIONS = results[0].map(function(o) { return [o.key, o.label]; });
+        COLOR_OPTIONS = results[1].map(function(o) { return [o.key, o.label]; });
+        MACHINE_LABEL_MAP = buildMACHINELabelMap(results[0], results[1]);
+    }).catch(function() {
+        // Fallback
+        var fbTypes = [
+            {key:'straight', label:'Recto'}, {key:'spiral', label:'Espiral'},
+            {key:'bullet', label:'Bala'}, {key:'mini_bullet', label:'Balita'},
+            {key:'pine', label:'Pino'}, {key:'peanut', label:'Cacahuate'}, {key:'balloon', label:'Globo'}
+        ];
+        var fbColors = [
+            {key:'black', label:'Negro'}, {key:'brown', label:'Cafe'},
+            {key:'blue', label:'Azul'}, {key:'green', label:'Verde'},
+            {key:'turquoise', label:'Turquesa'}, {key:'pink', label:'Rosa'},
+            {key:'purple', label:'Morado'}, {key:'transparent', label:'Transparente'}
+        ];
+        TYPE_OPTIONS = fbTypes.map(function(o) { return [o.key, o.label]; });
+        COLOR_OPTIONS = fbColors.map(function(o) { return [o.key, o.label]; });
+        MACHINE_LABEL_MAP = buildMACHINELabelMap(fbTypes, fbColors);
+    });
+}
+
 document.addEventListener('DOMContentLoaded', function () {
-    // Pre-llenar deliveries
-    const raw = {{ report.entregas | tojson }};
-    if (raw) {
-        const container = document.getElementById('delivery_rows');
-        container.innerHTML = '';
-        raw.split(', ').forEach(entry => {
-            const parts = entry.split(' - ');
-            const customer = parts[0] || '';
-            const desc     = parts.slice(1).join(' - ') || '';
-            const row = document.createElement('div');
-            row.className = 'delivery-row prod-row prod-row--delivery';
-            row.innerHTML = `
-                <div class="prod-row-name">
-                    <label>Cliente:</label>
-                    <input type="text" class="delivery-customer" value="${customer}">
-                </div>
-                <div class="prod-row-desc">
-                    <label>Descripción:</label>
-                    <input type="text" class="delivery-desc" value="${desc}">
-                </div>
-                <button type="button" onclick="removeDeliveryRow(this)"
-                        class="btn-remove prod-row-remove" aria-label="Eliminar">×</button>`;
-            container.appendChild(row);
-        });
-    }
-
-    // Pre-llenar máquinas
-    let machines = [];
-    {% if report.maquinas and report.maquinas != '' %}
-        try {
-            machines = JSON.parse({{ report.maquinas | tojson }});
-            // Las etiquetas vienen como display labels, convertir a value keys
-            machines.forEach(m => {
-                m.tipo = labelToVal(m.tipo);
-                m.color = labelToVal(m.color);
+    fetchConfigOptions().then(function() {
+        // Pre-llenar deliveries
+        const raw = {{ report.entregas | tojson }};
+        if (raw) {
+            const container = document.getElementById('delivery_rows');
+            container.innerHTML = '';
+            raw.split(', ').forEach(function(entry) {
+                const parts = entry.split(' - ');
+                const customer = parts[0] || '';
+                const desc     = parts.slice(1).join(' - ') || '';
+                const row = document.createElement('div');
+                row.className = 'delivery-row prod-row prod-row--delivery';
+                row.innerHTML =
+                    '<div class="prod-row-name">' +
+                        '<label>Cliente:</label>' +
+                        '<input type="text" class="delivery-customer" value="' + customer + '">' +
+                    '</div>' +
+                    '<div class="prod-row-desc">' +
+                        '<label>Descripción:</label>' +
+                        '<input type="text" class="delivery-desc" value="' + desc + '">' +
+                    '</div>' +
+                    '<button type="button" onclick="removeDeliveryRow(this)"' +
+                            'class="btn-remove prod-row-remove" aria-label="Eliminar">×</button>';
+                container.appendChild(row);
             });
-        } catch(e) {}
-    {% else %}
-        {% for i in [1, 2, 3] %}
-        {% set qty = report['maquina' ~ i ~ '_cantidad'] %}
-        {% if qty and qty|int > 0 %}
-        machines.push({
-            maquina: {{ i }},
-            cantidad: {{ qty }},
-            tipo: labelToVal('{{ report["maquina" ~ i ~ "_tipo"] }}'),
-            color: labelToVal('{{ report["maquina" ~ i ~ "_color"] }}'),
-        });
-        {% endif %}
-        {% endfor %}
-    {% endif %}
+        }
 
-    [1, 2, 3].forEach(num => {
-        const entries = machines.filter(m => m.maquina === num);
-        const container = document.getElementById('machine' + num + '_rows');
-        container.innerHTML = '';
-        entries.forEach(m => {
-            const row = document.createElement('div');
-            row.className = 'machine-row';
-            row.setAttribute('data-machine', num);
-            row.innerHTML = `
-                <div class="machine-row__qty">
-                    <label>Cantidad</label>
-                    <input type="text" inputmode="numeric" pattern="[0-9]*"
-                           class="machine-qty machine${num}-qty" value="${m.cantidad}" placeholder="0">
-                </div>
-                <div class="machine-row__type">
-                    <label>Tipo de Cepillo</label>
-                    <select class="machine-type machine${num}-type">${machineSelectHtml(TYPE_OPTIONS, m.tipo)}</select>
-                </div>
-                <div class="machine-row__color">
-                    <label>Color</label>
-                    <select class="machine-color machine${num}-color">${machineSelectHtml(COLOR_OPTIONS, m.color)}</select>
-                </div>
-                <button type="button" onclick="removeMachineRow(this, ${num})"
-                        class="btn-remove prod-row-remove machine-remove" aria-label="Eliminar">×</button>`;
-            container.appendChild(row);
-            _bindMachineRowValidation(row, num);
+        // Pre-llenar máquinas
+        let machines = [];
+        {% if report.maquinas and report.maquinas != '' %}
+            try {
+                machines = JSON.parse({{ report.maquinas | tojson }});
+                machines.forEach(function(m) {
+                    m.tipo = labelToVal(m.tipo);
+                    m.color = labelToVal(m.color);
+                });
+            } catch(e) {}
+        {% else %}
+            {% for i in [1, 2, 3] %}
+            {% set qty = report['maquina' ~ i ~ '_cantidad'] %}
+            {% if qty and qty|int > 0 %}
+            machines.push({
+                maquina: {{ i }},
+                cantidad: {{ qty }},
+                tipo: labelToVal('{{ report["maquina" ~ i ~ "_tipo"] }}'),
+                color: labelToVal('{{ report["maquina" ~ i ~ "_color"] }}'),
+            });
+            {% endif %}
+            {% endfor %}
+        {% endif %}
+
+        [1, 2, 3].forEach(function(num) {
+            const entries = machines.filter(function(m) { return m.maquina === num; });
+            const container = document.getElementById('machine' + num + '_rows');
+            container.innerHTML = '';
+            entries.forEach(function(m) {
+                const row = document.createElement('div');
+                row.className = 'machine-row';
+                row.setAttribute('data-machine', num);
+                row.innerHTML =
+                    '<div class="machine-row__qty">' +
+                        '<label>Cantidad</label>' +
+                        '<input type="text" inputmode="numeric" pattern="[0-9]*"' +
+                               'class="machine-qty machine' + num + '-qty" value="' + m.cantidad + '" placeholder="0">' +
+                    '</div>' +
+                    '<div class="machine-row__type">' +
+                        '<label>Tipo de Cepillo</label>' +
+                        '<select class="machine-type machine' + num + '-type">' + machineSelectHtml(TYPE_OPTIONS, m.tipo) + '</select>' +
+                    '</div>' +
+                    '<div class="machine-row__color">' +
+                        '<label>Color</label>' +
+                        '<select class="machine-color machine' + num + '-color">' + machineSelectHtml(COLOR_OPTIONS, m.color) + '</select>' +
+                    '</div>' +
+                    '<button type="button" onclick="removeMachineRow(this, ' + num + ')"' +
+                            'class="btn-remove prod-row-remove machine-remove" aria-label="Eliminar">×</button>';
+                container.appendChild(row);
+                _bindMachineRowValidation(row, num);
+            });
+            if (entries.length === 0) addMachineRow(num);
         });
-        if (entries.length === 0) addMachineRow(num);
     });
 });
 </script>

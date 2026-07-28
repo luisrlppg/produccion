@@ -136,6 +136,37 @@ def init_db(app):
     print(f'[DB] Lista en {DB_PATH}')
 
 
+# ── Config options (brush types & colors) ──────────────────────────────────────
+
+def get_config_options(option_type: str) -> list[dict]:
+    with get_db() as db:
+        rows = db.execute(
+            'SELECT id, option_type, option_key, option_label, sort_order '
+            'FROM config_options WHERE option_type = ? ORDER BY sort_order, id',
+            (option_type,)
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def add_config_option(option_type: str, option_key: str, option_label: str, sort_order: int = 0) -> int:
+    with get_db() as db:
+        cur = db.execute(
+            'INSERT INTO config_options (option_type, option_key, option_label, sort_order) '
+            'VALUES (?, ?, ?, ?)',
+            (option_type, option_key, option_label, sort_order)
+        )
+        return cur.lastrowid
+
+
+def get_config_option_label(option_key: str) -> str | None:
+    with get_db() as db:
+        row = db.execute(
+            'SELECT option_label FROM config_options WHERE option_key = ? LIMIT 1',
+            (option_key,)
+        ).fetchone()
+        return row[0] if row else None
+
+
 # ── Production reports ─────────────────────────────────────────────────────────
 
 def insert_production_report(

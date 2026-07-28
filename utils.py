@@ -82,7 +82,16 @@ ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 
 
 def get_text(key: str) -> str:
-    return STRINGS.get(key, key)
+    if key in STRINGS:
+        return STRINGS[key]
+    try:
+        from database import get_config_option_label
+        label = get_config_option_label(key)
+        if label:
+            return label
+    except Exception:
+        pass
+    return key
 
 
 def allowed_file(filename: str) -> bool:

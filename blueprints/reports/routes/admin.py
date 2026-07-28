@@ -12,7 +12,8 @@ from database import (get_production_reports, get_production_dates,
                       export_production_csv, export_simple_csv,
                       get_production_report_by_id, update_production_report,
                       delete_production_report, parse_maquinas,
-                      format_maquinas_text)
+                      format_maquinas_text,
+                      get_config_options, add_config_option)
 from utils import (get_text, read_production_details_json,
                    _format_products, _format_deliveries,
                    save_production_details_json)
@@ -469,6 +470,71 @@ def download_report_csv(report_type):
     except Exception as e:
         flash(f'Error al generar el CSV: {str(e)}', 'error')
         return redirect(url_for('reportes'))
+
+
+# ── Config options (brush types & colors) ───────────────────────────────────────
+
+import re as _re
+
+
+def _slugify(text: str) -> str:
+    text = text.lower().strip()
+    text = _re.sub(r'[^a-z0-9\s-]', '', text)
+    text = _re.sub(r'[\s-]+', '_', text)
+    return text.strip('_')
+
+
+@admin_bp.route('/reportes/api/config/<option_type>')
+def api_config_options(option_type: str):
+    if option_type not in ('brush_type', 'color'):
+        return {'error': 'tipo invalido'}, 400
+    options = get_config_options(option_type)
+    return [{'key': o['option_key'], 'label': o['option_label']} for o in options]
+
+
+@admin_bp.route('/reportes/config')
+@login_required
+def config_options_page():
+    brush_types = get_config_options('brush_type')
+    colors = get_config_options('color')
+    return render_template('reports/config_options.html',
+                           brush_types=brush_types,
+                           colors=colors,
+                           get_text=get_text)
+
+
+@admin_bp.route('/reportes/config/agregar', methods=['POST'])
+@login_required
+def config_option_add():
+    admin_password = os.getenv('ADMIN_PASSWORD', '')
+    provided = request.form.get('admin_password', '')
+    if not admin_password or provided != admin_password:
+        flash('Contraseña de administrador incorrecta', 'error')
+        return redirect(url_for('panel.config_options_page'))
+
+    option_type = request.form.get('tipo', '')
+    label = request.form.get('label', '').strip()
+    if not label:
+        flash('La etiqueta es obligatoria', 'error')
+        return redirect(url_for('panel.config_options_page'))
+    if option_type not in ('brush_type', 'color'):
+        flash('Tipo invalido', 'error')
+        return redirect(url_for('panel.config_options_page'))
+
+    key = _slugify(label)
+    if not key:
+        flash('No se pudo generar una clave a partir de la etiqueta', 'error')
+        return redirect(url_for('panel.config_options_page'))
+
+    existing = get_config_options(option_type)
+    if any(o['option_key'] == key for o in existing):
+        flash(f'Ya existe una opcion con la clave "{key}"', 'error')
+        return redirect(url_for('panel.config_options_page'))
+
+    sort_order = (existing[-1]['sort_order'] + 1) if existing else 1
+    add_config_option(option_type, key, label, sort_order)
+    flash(f'"{label}" agregado correctamente', 'success')
+    return redirect(url_for('panel.config_options_page'))
 
 
 # ── Helpers privados ───────────────────────────────────────────────────────────

@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Configuracion de Tipos de Cepillo y Colores</h2>
+
+<p style="color: #666; margin-bottom: 24px;">
+    Agrega nuevos tipos de cepillo y colores que estaran disponibles en los formularios de reportes de produccion.
+</p>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+    {# ── Brush Types ─────────────────────────────────────────────── #}
+    <div class="card">
+        <div class="card-header">
+            <h3>Tipos de Cepillo</h3>
+        </div>
+        <div class="card-body">
+            <ul style="margin: 0; padding-left: 20px;">
+                {% for bt in brush_types %}
+                    <li>{{ bt.option_label }} <code style="font-size: 0.8em; color: #888;">({{ bt.option_key }})</code></li>
+                {% endfor %}
+            </ul>
+
+            <hr style="margin: 16px 0;">
+
+            <form method="POST" action="{{ url_for('panel.config_option_add') }}"
+                  style="display: flex; gap: 8px; flex-wrap: wrap; align-items: end;">
+                <input type="hidden" name="tipo" value="brush_type">
+                <div>
+                    <label for="new_brush_type" style="display: block; font-size: 0.85em; margin-bottom: 4px;">Nuevo tipo de cepillo</label>
+                    <input type="text" id="new_brush_type" name="label" required
+                           placeholder="Ej: Cepillo Premium" class="form-control">
+                </div>
+                <div>
+                    <label for="pw_brush" style="display: block; font-size: 0.85em; margin-bottom: 4px;">Contraseña admin</label>
+                    <input type="password" id="pw_brush" name="admin_password" required
+                           class="form-control" style="width: 150px;">
+                </div>
+                <button type="submit" class="btn btn-success">Agregar</button>
+            </form>
+        </div>
+    </div>
+
+    {# ── Colors ──────────────────────────────────────────────────── #}
+    <div class="card">
+        <div class="card-header">
+            <h3>Colores</h3>
+        </div>
+        <div class="card-body">
+            <ul style="margin: 0; padding-left: 20px;">
+                {% for c in colors %}
+                    <li>{{ c.option_label }} <code style="font-size: 0.8em; color: #888;">({{ c.option_key }})</code></li>
+                {% endfor %}
+            </ul>
+
+            <hr style="margin: 16px 0;">
+
+            <form method="POST" action="{{ url_for('panel.config_option_add') }}"
+                  style="display: flex; gap: 8px; flex-wrap: wrap; align-items: end;">
+                <input type="hidden" name="tipo" value="color">
+                <div>
+                    <label for="new_color" style="display: block; font-size: 0.85em; margin-bottom: 4px;">Nuevo color</label>
+                    <input type="text" id="new_color" name="label" required
+                           placeholder="Ej: Naranja" class="form-control">
+                </div>
+                <div>
+                    <label for="pw_color" style="display: block; font-size: 0.85em; margin-bottom: 4px;">Contraseña admin</label>
+                    <input type="password" id="pw_color" name="admin_password" required
+                           class="form-control" style="width: 150px;">
+                </div>
+                <button type="submit" class="btn btn-success">Agregar</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div style="margin-top: 28px;">
+    <a href="{{ url_for('panel.production_view') }}" class="btn btn-secondary">Volver a Reportes</a>
+</div>
+{% endblock %}
